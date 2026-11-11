@@ -44,7 +44,7 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativePrepareD
     _this: JObject,
     distro_id: JString,
     base_directory: JString,
-) -> jstring {
+) -> jboolean {
     let distro_id: String = match env.get_string(&distro_id) {
         Ok(value) => value.into(),
         Err(_) => return JNI_FALSE,
@@ -92,10 +92,10 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
     base_directory: JString,
     archive_path: JString,
     expected_sha256: JString,
-) -> jboolean {
+) -> jstring {
     let distro_id: String = match env.get_string(&distro_id) {
         Ok(value) => value.into(),
-        Err(_) => return JNI_FALSE,
+        Err(_) => return std::ptr::null_mut(),
     };
     let base_directory: String = match env.get_string(&base_directory) {
         Ok(value) => value.into(),
