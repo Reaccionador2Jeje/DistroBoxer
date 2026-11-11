@@ -442,7 +442,7 @@ private fun TerminalPage() {
                 Text("  • Cambiar entre distribuciones", color = Color(0xFF9FB7AA))
                 Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
                 Spacer(Modifier.height(12.dp))
-                Text("$  runtime status", color = Color(0xFF62E6B7))
+                Text("\$  runtime status", color = Color(0xFF62E6B7))
                 Text("  PRoot: pendiente · X11: pendiente", color = Color(0xFFFFC078))
             }
         }
