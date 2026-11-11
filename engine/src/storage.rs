@@ -59,7 +59,20 @@ impl StorageManager {
 
     /// Reads persisted metadata. Missing metadata is not an error.
     pub fn read_metadata(&self, id: &str) -> io::Result<Option<DistroMetadata>> {
-        let path = self.distro_dir(id)?.join("metadata.json");
+        let distro_dir = self.distro_dir(id)?;
+        match fs::symlink_metadata(&distro_dir) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+            Ok(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "distribution storage must be a real directory",
+                ));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        }
+
+        let path = distro_dir.join("metadata.json");
         match fs::symlink_metadata(&path) {
             Ok(file_metadata) if file_metadata.file_type().is_symlink() => {
                 return Err(io::Error::new(
@@ -148,7 +161,18 @@ impl StorageManager {
     /// Checks for a real rootfs directory, rejecting a symlink at that location.
     pub fn is_installed(&self, id: &str) -> io::Result<bool> {
         let rootfs = self.distro_dir(id)?.join("rootfs");
-        let release_file = rootfs.join("etc/os-release");
+        let etc_dir = rootfs.join("etc");
+
+        for directory in [&rootfs, &etc_dir] {
+            match fs::symlink_metadata(directory) {
+                Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+                Ok(_) => return Ok(false),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+                Err(error) => return Err(error),
+            }
+        }
+
+        let release_file = etc_dir.join("os-release");
         match fs::symlink_metadata(&release_file) {
             Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
