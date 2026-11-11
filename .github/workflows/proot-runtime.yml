@@ -132,6 +132,15 @@ jobs:
           fi
           sed -i "s|-ltalloc|$RUNNER_TEMP/talloc/bin/default/libtalloc.a|" proot/src/GNUmakefile
           grep -F 'libtalloc.a' proot/src/GNUmakefile
+
+          # GNU objdump on the x86_64 runner cannot identify AArch64 objects.
+          # Use the NDK's multi-architecture LLVM binutils for both ARM loaders.
+          LLVM_BIN="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          mkdir -p "$RUNNER_TEMP/llvm-bin"
+          ln -sf "$LLVM_BIN/llvm-objdump" "$RUNNER_TEMP/llvm-bin/objdump"
+          ln -sf "$LLVM_BIN/llvm-objcopy" "$RUNNER_TEMP/llvm-bin/objcopy"
+          export PATH="$RUNNER_TEMP/llvm-bin:$PATH"
+
           make -C proot/src -j2 \
             CC="$CC" \
             CFLAGS="$CFLAGS -DARG_MAX=131072 -I$RUNNER_TEMP/talloc" \
