@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,7 @@ import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private data class DistroUi(
@@ -85,6 +87,7 @@ private enum class AppTab(val label: String, val symbol: String) {
     HOME("Inicio", "⌂"),
     DISTROS("Distros", "▦"),
     TERMINAL("Terminal", ">_"),
+    PROGRAMMING("Programar", "{ }"),
     DESKTOP("Escritorio", "▣"),
     SETTINGS("Ajustes", "⚙"),
 }
@@ -160,9 +163,76 @@ private fun DistroBoxerScreen() {
         }
     }
     val x11Available = remember { EmbeddedX11Backend().isAvailable(context) }
+    val workspace = remember(context) { ProjectWorkspace(context) }
+    val coroutineScope = rememberCoroutineScope()
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var search by remember { mutableStateOf("") }
+    var projectFileName by remember { mutableStateOf("main.py") }
+    var projectSource by remember {
+        mutableStateOf(
+            """print("Hola desde DistroBoxer!")
+for numero in range(1, 6):
+    print(f"Número: {numero}")""",
+        )
+    }
+    var projectStatus by remember { mutableStateOf("Ejemplo Python listo. Guarda el archivo en tu espacio de proyectos.") }
+    var terminalOutput by remember { mutableStateOf("DistroBoxer · Terminal Linux\nTodavía no hay una sesión activa.\n") }
+    var terminalCommand by remember { mutableStateOf("") }
+    var terminalStatus by remember { mutableStateOf("Sesión cerrada") }
+    var terminalSession by remember { mutableStateOf<TerminalSession?>(null) }
+
+    suspend fun openLinuxShell(distroId: String = "alpine"): TerminalSession {
+        val current = terminalSession
+        if (current != null && current.isAlive()) return current
+        val process = withContext(Dispatchers.IO) { prootRuntime.startShell(distroId) }
+        val session = TerminalSession(
+            process = process,
+            onOutput = { chunk -> terminalOutput = (terminalOutput + chunk).takeLast(18000) },
+            onExit = { code ->
+                terminalStatus = "La shell terminó (código $code)"
+                terminalSession = null
+            },
+        )
+        terminalSession = session
+        terminalStatus = "Conectado a $distroId"
+        terminalOutput += "\n[ DistroBoxer: sesión iniciada en $distroId ]\n"
+        return session
+    }
+
+    fun startLinuxShell() {
+        coroutineScope.launch {
+            try {
+                openLinuxShell()
+            } catch (error: Exception) {
+                terminalStatus = "No se pudo iniciar"
+                terminalOutput += "\n[error] \${error.message ?: "No se pudo iniciar PRoot"}\n"
+            }
+        }
+    }
+
+    fun saveProject() {
+        runCatching { workspace.save(projectFileName, projectSource) }
+            .onSuccess { projectStatus = "Guardado: \${it.name}" }
+            .onFailure { projectStatus = "Error al guardar: \${it.message}" }
+    }
+
+    fun runProject() {
+        coroutineScope.launch {
+            try {
+                workspace.save(projectFileName, projectSource)
+                val session = openLinuxShell("alpine")
+                withContext(Dispatchers.IO) {
+                    prootRuntime.writeProjectFile("alpine", projectFileName, projectSource)
+                }
+                session.sendLine("python3 /root/projects/$projectFileName")
+                projectStatus = "Ejecutando $projectFileName en Alpine. Si Python falta, usa: apk add python3"
+                selectedTab = AppTab.TERMINAL
+            } catch (error: Exception) {
+                projectStatus = "No se pudo ejecutar: \${error.message ?: "error desconocido"}. Instala Alpine primero."
+            }
+        }
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
@@ -298,7 +368,39 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage(prootAvailable = prootAvailable, prootInstallStatus = prootInstallStatus)
+                AppTab.TERMINAL -> TerminalPage(
+                    prootAvailable = prootAvailable,
+                    prootInstallStatus = prootInstallStatus,
+                    terminalOutput = terminalOutput,
+                    terminalCommand = terminalCommand,
+                    terminalStatus = terminalStatus,
+                    onCommandChange = { terminalCommand = it },
+                    onStartSession = { startLinuxShell() },
+                    onSendCommand = {
+                        val line = terminalCommand
+                        if (line.isNotBlank()) {
+                            runCatching { terminalSession?.sendLine(line) }
+                                .onFailure { terminalOutput += "\n[error] \${it.message}\n" }
+                            terminalCommand = ""
+                        }
+                    },
+                    onStopSession = {
+                        terminalSession?.close()
+                        terminalSession = null
+                        prootRuntime.stop()
+                        terminalStatus = "Sesión detenida"
+                        terminalOutput += "\n[ DistroBoxer: sesión detenida ]\n"
+                    },
+                )
+                AppTab.PROGRAMMING -> ProgrammingPage(
+                    fileName = projectFileName,
+                    source = projectSource,
+                    status = projectStatus,
+                    onFileNameChange = { projectFileName = it },
+                    onSourceChange = { projectSource = it },
+                    onSave = { saveProject() },
+                    onRun = { runProject() },
+                )
                 AppTab.DESKTOP -> DesktopPage(prootAvailable = prootAvailable, x11Available = x11Available)
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
@@ -444,43 +546,125 @@ private fun DistroCard(
 }
 
 @Composable
-private fun TerminalPage(prootAvailable: Boolean, prootInstallStatus: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun TerminalPage(
+    prootAvailable: Boolean,
+    prootInstallStatus: String,
+    terminalOutput: String,
+    terminalCommand: String,
+    terminalStatus: String,
+    onCommandChange: (String) -> Unit,
+    onStartSession: () -> Unit,
+    onSendCommand: () -> Unit,
+    onStopSession: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("PRoot · Alpine Linux · shell interactiva", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionCard(
+            title = "Runtime PRoot",
+            value = if (prootAvailable) "Instalado y verificado" else "No disponible",
+            detail = prootInstallStatus,
+            good = prootAvailable,
+        )
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.padding(17.dp)) {
+            Column(Modifier.padding(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("●  ●  ●", color = Color(0xFF62E6B7))
                     Spacer(Modifier.weight(1f))
-                    Text("DISTROBOXER SHELL", color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
+                    Text(terminalStatus.uppercase(), color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
                 }
-                Spacer(Modifier.height(22.dp))
-                Text("Atdev Dev · DistroBoxer", color = Color(0xFF62E6B7), fontWeight = FontWeight.Bold)
-                Text("No hay ninguna sesión Linux activa.", color = Color(0xFFC1D0C9))
-                Spacer(Modifier.height(8.dp))
-                Text("Cuando el runtime esté integrado, aquí podrás:", color = Color(0xFF9FB7AA))
-                Text("  • Abrir una shell interactiva", color = Color(0xFF9FB7AA))
-                Text("  • Cambiar entre distribuciones", color = Color(0xFF9FB7AA))
-                Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
-                Spacer(Modifier.height(12.dp))
-                Text("\$  runtime status", color = Color(0xFF62E6B7))
-                Text(
-                    if (prootAvailable) "  PRoot: instalado y verificado" else "  PRoot: no disponible",
-                    color = if (prootAvailable) Color(0xFF62E6B7) else Color(0xFFFFC078),
-                )
-                Text(prootInstallStatus, color = Color(0xFF9FB7AA), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+                Text(terminalOutput, color = Color(0xFFD5E8DD), style = MaterialTheme.typography.bodySmall)
             }
         }
+        OutlinedTextField(
+            value = terminalCommand,
+            onValueChange = onCommandChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Comando Linux") },
+            placeholder = { Text("apk add python3") },
+            shape = RoundedCornerShape(14.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Button(onClick = onStartSession, enabled = prootAvailable) { Text("Iniciar Alpine") }
+            Button(onClick = onSendCommand, enabled = terminalStatus.startsWith("Conectado")) { Text("Ejecutar") }
+            Button(onClick = onStopSession, enabled = terminalStatus.startsWith("Conectado")) { Text("Detener") }
+        }
+        Text(
+            "Ejemplo: apk add python3 instala Python en Alpine. La distribución debe estar instalada antes de iniciar la shell.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun ProgrammingPage(
+    fileName: String,
+    source: String,
+    status: String,
+    onFileNameChange: (String) -> Unit,
+    onSourceChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onRun: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Programar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Un espacio para escribir y ejecutar código dentro de Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = fileName,
+            onValueChange = onFileNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Archivo del proyecto") },
+            shape = RoundedCornerShape(14.dp),
+        )
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1420)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text("EDITOR · PYTHON", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = source,
+                    onValueChange = onSourceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 10,
+                    maxLines = 18,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    label = { Text("Código fuente") },
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Button(onClick = onSave) { Text("Guardar proyecto") }
+            Button(onClick = onRun) { Text("▶ Ejecutar en Linux") }
+        }
+        Text(status, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
         SectionCard(
-            title = "Motor PRoot",
-            value = if (prootAvailable) "Instalado para este dispositivo" else "No disponible",
-            detail = if (prootAvailable) "El binario verificado está instalado. Aún falta conectar la sesión interactiva y tener una distribución Linux instalada." else prootInstallStatus,
-            good = prootAvailable,
+            title = "Flujo de trabajo",
+            value = "Editor → archivo → PRoot → Python",
+            detail = "Guarda el código en el espacio privado de DistroBoxer. Al ejecutarlo, se copia a /root/projects dentro de Alpine y se lanza desde la terminal.",
+            good = true,
+        )
+        Text(
+            "Antes de ejecutar Python por primera vez, instala el intérprete desde la terminal con: apk add python3",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
