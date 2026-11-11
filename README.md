@@ -14,6 +14,8 @@ Implemented:
 - Validated distribution IDs and isolated app-private storage.
 - JSON metadata and validated installation lifecycle transitions.
 - SHA-256 verification primitive.
+- Redesigned Android Compose interface with dashboard, distro search, terminal center, graphical-desktop center, and settings navigation.
+- Redesigned responsive desktop workspace with sidebar navigation, searchable catalog, terminal preview, and graphical-desktop catalog.
 - Android Compose application and JNI bridge to Rust.
 - Android adaptive launcher icon and app identity assets.
 - Alpine 3.24.4 ARM64/x86_64 source manifest and official SHA-256 manifest lookup.
@@ -27,6 +29,7 @@ Not implemented yet:
 - Trusted, pinned rootfs manifests and end-to-end installation for each distribution.
 - Safe archive/OCI layer extraction and recovery from interrupted extraction.
 - Bundled PRoot runtime and interactive Linux terminal.
+- X11 display backend and XFCE/LXQt/MATE session launcher (design documented; not yet implemented).
 - Persistent background Linux sessions (the current background worker handles downloads only).
 - Signed production Android APK/AAB and platform installer bundles.
 - Official F-Droid submission and acceptance.
@@ -74,6 +77,10 @@ cargo run --manifest-path desktop/Cargo.toml
 ```
 
 See [desktop/README.md](desktop/README.md) for platform-specific requirements.
+
+## Graphical desktop roadmap
+
+See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture, display-backend choices, free desktop profiles, and Android session lifecycle. The current Android and desktop graphical-desktop screens are UI previews only; they do not launch X11 or a Linux desktop yet.
 
 ## Background work and permissions
 
