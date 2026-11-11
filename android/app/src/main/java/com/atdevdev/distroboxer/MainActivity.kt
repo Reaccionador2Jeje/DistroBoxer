@@ -35,12 +35,19 @@ private data class DistroUi(
     val name: String,
     val packageManager: String,
     val description: String,
+    val bootstrap: String,
+    val homepage: String,
 )
 
 private val fallbackDistros = listOf(
-    DistroUi("debian", "Debian", "APT", "Estable y versátil"),
-    DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar"),
-    DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista"),
+    DistroUi("debian", "Debian", "APT", "Estable y versátil", "OCI", "https://www.debian.org/"),
+    DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar", "OCI", "https://ubuntu.com/"),
+    DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista", "Minirootfs", "https://alpinelinux.org/"),
+    DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release", "Bootstrap", "https://archlinux.org/"),
+    DistroUi("fedora", "Fedora", "DNF", "Tecnología y software reciente", "OCI", "https://fedoraproject.org/"),
+    DistroUi("opensuse", "openSUSE", "ZYPPER", "Distribución comunitaria", "OCI", "https://www.opensuse.org/"),
+    DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "Rootfs tarball", "https://voidlinux.org/"),
+    DistroUi("kali", "Kali Linux", "APT", "Distribución especializada", "OCI", "https://www.kali.org/"),
 )
 
 private data class DistroCatalog(
@@ -61,6 +68,8 @@ private fun loadDistroCatalog(): DistroCatalog {
                 description = "Arquitecturas: " +
                     List(architectures.length()) { architectures.getString(it) }
                         .joinToString(", "),
+                bootstrap = item.getString("bootstrap"),
+                homepage = item.getString("homepage"),
             )
         }
         DistroCatalog(distros, engineConnected = true)
@@ -181,6 +190,11 @@ private fun DistroCard(
                     "${distro.description} · ${distro.packageManager}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Base: ${distro.bootstrap} · Instalador en desarrollo",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
                 )
                 if (storageStatus != null) {
                     Text(
