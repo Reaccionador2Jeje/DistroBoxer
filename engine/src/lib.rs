@@ -5,8 +5,11 @@
 
 use std::path::{Path, PathBuf};
 
+pub mod integrity;
 pub mod metadata;
 pub mod storage;
+
+pub use integrity::{sha256_file, verify_sha256};
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
