@@ -64,6 +64,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://ubuntu.com/",
         bootstrap: "OCI root filesystem",
+        archive_format: "oci",
     },
     Distro {
         id: "arch",
@@ -81,6 +82,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://fedoraproject.org/",
         bootstrap: "OCI root filesystem",
+        archive_format: "oci",
     },
     Distro {
         id: "opensuse",
@@ -89,6 +91,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.opensuse.org/",
         bootstrap: "OCI root filesystem",
+        archive_format: "oci",
     },
     Distro {
         id: "void",
@@ -106,6 +109,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.kali.org/",
         bootstrap: "OCI root filesystem",
+        archive_format: "oci",
     },
 ];
 
