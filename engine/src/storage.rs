@@ -5,6 +5,7 @@ use crate::{distro_path, find_distro, is_supported};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Manages per-distribution directories beneath an application-private base.
 #[derive(Debug, Clone)]
@@ -59,15 +60,30 @@ impl StorageManager {
     /// Reads persisted metadata. Missing metadata is not an error.
     pub fn read_metadata(&self, id: &str) -> io::Result<Option<DistroMetadata>> {
         let path = self.distro_dir(id)?.join("metadata.json");
-        match fs::read_to_string(path) {
-            Ok(contents) => {
-                let metadata = serde_json::from_str(&contents)
-                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-                Ok(Some(metadata))
+        match fs::symlink_metadata(&path) {
+            Ok(file_metadata) if file_metadata.file_type().is_symlink() => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "distribution metadata must not be a symbolic link",
+                ));
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error),
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
         }
+
+        let contents = fs::read_to_string(path)?;
+        let metadata: DistroMetadata = serde_json::from_str(&contents)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+        if metadata.distro_id != id || metadata.schema_version != 1 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "metadata ID or schema version is invalid",
+            ));
+        }
+
+        Ok(Some(metadata))
     }
 
     /// Writes metadata atomically using a temporary file in the same directory.
@@ -83,17 +99,31 @@ impl StorageManager {
         ensure_real_directory(&distro_dir)?;
 
         let destination = distro_dir.join("metadata.json");
-        let temporary = distro_dir.join(format!(".metadata.{}.tmp", std::process::id()));
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let temporary = distro_dir.join(format!(
+            ".metadata.{}.{}.tmp",
+            std::process::id(),
+            nonce
+        ));
         let contents = serde_json::to_vec_pretty(metadata)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
 
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)?;
-        file.write_all(&contents)?;
-        file.sync_all()?;
-        drop(file);
+        let write_result = (|| {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            file.write_all(&contents)?;
+            file.sync_all()
+        })();
+
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temporary);
+            return Err(error);
+        }
 
         if let Err(error) = fs::rename(&temporary, &destination) {
             let _ = fs::remove_file(&temporary);
