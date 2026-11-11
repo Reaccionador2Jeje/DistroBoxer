@@ -257,7 +257,7 @@ class DistroArchiveDownloadWorker(
         private const val MAX_REDIRECTS = 5
         private const val MAX_ARCHIVE_BYTES = 4L * 1024L * 1024L * 1024L
         private const val MAX_CHECKSUM_BYTES = 4096
-        private val CHECKSUM_LINE = Regex("""^\\s*([a-fA-F0-9]{64})(?:\\s+\\*?(.+?))?\\s*$""")
+        private val CHECKSUM_LINE = Regex("""^\s*([a-fA-F0-9]{64})(?:\s+\*?(.+?))?\s*$""")
 
         private val TRUSTED_DOMAINS = setOf(
             "debian.org",
