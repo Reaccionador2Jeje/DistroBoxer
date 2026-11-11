@@ -2,7 +2,7 @@
 
 use crate::metadata::{DistroMetadata, InstallStatus};
 use crate::{distro_path, find_distro, is_supported};
-use crate::{installer::extract_tar_gz, verify_sha256};
+use crate::verify_sha256;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -251,11 +251,9 @@ impl StorageManager {
 
             fs::create_dir(&staging)?;
             progress("Iniciando extracción del sistema Linux…".to_owned());
-            crate::installer::extract_tar_gz_with_progress(
-                &archive_path,
-                &staging,
-                |line| progress(line),
-            )?;
+            crate::installer::extract_tar_gz_with_progress(&archive_path, &staging, |line| {
+                progress(line)
+            })?;
             progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
@@ -345,7 +343,9 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
             format!("root filesystem is missing a readable etc/os-release: {error}"),
         )
     })?;
-    if !resolved_release.starts_with(&rootfs_canonical) || !fs::metadata(&resolved_release)?.is_file() {
+    if !resolved_release.starts_with(&rootfs_canonical)
+        || !fs::metadata(&resolved_release)?.is_file()
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "root filesystem etc/os-release does not resolve to a regular file inside rootfs",
