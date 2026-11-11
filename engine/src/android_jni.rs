@@ -92,6 +92,7 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
     base_directory: JString,
     archive_path: JString,
     expected_sha256: JString,
+    listener: JObject,
 ) -> jstring {
     let distro_id: String = match env.get_string(&distro_id) {
         Ok(value) => value.into(),
@@ -110,10 +111,20 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
         Err(_) => return std::ptr::null_mut(),
     };
 
-    let result = StorageManager::new(base_directory).install_tar_gz(
+    let result = StorageManager::new(base_directory).install_tar_gz_with_progress(
         &distro_id,
         archive_path,
         &expected_sha256,
+        |line| {
+            if let Ok(message) = env.new_string(line) {
+                let _ = env.call_method(
+                    &listener,
+                    "onInstallLog",
+                    "(Ljava/lang/String;)V",
+                    &[jni::objects::JValue::Object(&message)],
+                );
+            }
+        },
     );
     let message = match result {
         Ok(()) => String::new(),
