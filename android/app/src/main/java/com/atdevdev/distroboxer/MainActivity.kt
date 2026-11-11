@@ -206,15 +206,15 @@ for numero in range(1, 6):
                 openLinuxShell()
             } catch (error: Exception) {
                 terminalStatus = "No se pudo iniciar"
-                terminalOutput += "\n[error] \${error.message ?: "No se pudo iniciar PRoot"}\n"
+                terminalOutput += "\n[error] ${error.message ?: "No se pudo iniciar PRoot"}\n"
             }
         }
     }
 
     fun saveProject() {
         runCatching { workspace.save(projectFileName, projectSource) }
-            .onSuccess { projectStatus = "Guardado: \${it.name}" }
-            .onFailure { projectStatus = "Error al guardar: \${it.message}" }
+            .onSuccess { projectStatus = "Guardado: ${it.name}" }
+            .onFailure { projectStatus = "Error al guardar: ${it.message}" }
     }
 
     fun runProject() {
@@ -229,7 +229,7 @@ for numero in range(1, 6):
                 projectStatus = "Ejecutando $projectFileName en Alpine. Si Python falta, usa: apk add python3"
                 selectedTab = AppTab.TERMINAL
             } catch (error: Exception) {
-                projectStatus = "No se pudo ejecutar: \${error.message ?: "error desconocido"}. Instala Alpine primero."
+                projectStatus = "No se pudo ejecutar: ${error.message ?: "error desconocido"}. Instala Alpine primero."
             }
         }
     }
@@ -380,7 +380,7 @@ for numero in range(1, 6):
                         val line = terminalCommand
                         if (line.isNotBlank()) {
                             runCatching { terminalSession?.sendLine(line) }
-                                .onFailure { terminalOutput += "\n[error] \${it.message}\n" }
+                                .onFailure { terminalOutput += "\n[error] ${it.message}\n" }
                             terminalCommand = ""
                         }
                     },
@@ -463,9 +463,9 @@ private fun HomePage(
         item {
             SectionCard(
                 title = "Terminal Linux",
-                value = "Próximamente",
-                detail = "La interfaz está preparada; falta integrar PRoot y las sesiones de shell.",
-                good = false,
+                value = "Shell interactiva",
+                detail = "Abre Alpine con PRoot y ejecuta comandos directamente desde DistroBoxer.",
+                good = true,
             )
         }
         item {
