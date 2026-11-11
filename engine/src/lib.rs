@@ -86,7 +86,8 @@ pub fn distro_path(base: impl AsRef<Path>, id: &str) -> Option<PathBuf> {
 /// Checks whether the expected root filesystem directory exists.
 pub fn is_installed(base: impl AsRef<Path>, id: &str) -> bool {
     distro_path(base, id)
-        .map(|path| path.join("rootfs").join("etc/os-release").is_file())
+        .and_then(|path| std::fs::symlink_metadata(path.join("rootfs/etc/os-release")).ok())
+        .map(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
         .unwrap_or(false)
 }
 
