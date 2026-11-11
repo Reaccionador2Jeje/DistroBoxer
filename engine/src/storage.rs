@@ -251,6 +251,24 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn rejects_symlinked_rootfs_directory() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_dir();
+        let outside = temp_dir();
+        fs::create_dir_all(base.join("distros/debian")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, base.join("distros/debian/rootfs")).unwrap();
+
+        let manager = StorageManager::new(&base);
+        assert!(!manager.is_installed("debian").unwrap());
+
+        fs::remove_dir_all(base).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn rejects_symlinked_distribution_directory() {
         use std::os::unix::fs::symlink;
 
