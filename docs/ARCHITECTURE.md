@@ -61,16 +61,16 @@ The Tauri shell calls the shared Rust engine and displays the same distribution 
 
 ## Distribution bootstrap strategies
 
-| Distribution | Intended bootstrap | Package manager |
+| Distribution | Intended bootstrap | Archive format | Package manager |
 |---|---|---|
-| Debian | OCI root filesystem | APT |
-| Ubuntu | OCI root filesystem | APT |
-| Alpine | Official minirootfs tarball | APK |
-| Arch Linux | Official bootstrap tarball (architecture-specific) | Pacman |
-| Fedora | OCI root filesystem | DNF |
-| openSUSE | OCI root filesystem | Zypper |
-| Void Linux | Official rootfs tarball | XBPS |
-| Kali Linux | OCI root filesystem | APT |
+| Debian | OCI root filesystem | OCI | APT |
+| Ubuntu | OCI root filesystem | OCI | APT |
+| Alpine | Official minirootfs tarball | tar.gz (preview installer) | APK |
+| Arch Linux | Official bootstrap tarball (architecture-specific) | tar.zst | Pacman |
+| Fedora | OCI root filesystem | OCI | DNF |
+| openSUSE | OCI root filesystem | OCI | Zypper |
+| Void Linux | Official rootfs tarball | tar.xz | XBPS |
+| Kali Linux | OCI root filesystem | OCI | APT |
 
 A profile is not installable until its exact architecture-specific source, checksum/signature, extraction rules, and runtime behavior are verified.
 
