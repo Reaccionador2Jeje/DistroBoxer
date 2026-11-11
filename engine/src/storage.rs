@@ -378,6 +378,27 @@ mod tests {
     }
 
     #[test]
+    fn rejects_gzip_installer_for_oci_distribution() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        manager.prepare_distro("debian").unwrap();
+
+        assert_eq!(
+            manager
+                .install_tar_gz(
+                    "debian",
+                    base.join("distros/debian/downloads/rootfs.tar.gz"),
+                    &"0".repeat(64),
+                )
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn installs_a_verified_gzip_rootfs_archive() {
         use flate2::write::GzEncoder;
         use flate2::Compression;
