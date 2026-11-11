@@ -464,6 +464,25 @@ mod tests {
         fs::remove_dir_all(base).unwrap();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn accepts_os_release_symlink_inside_rootfs() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let distro_dir = manager.prepare_distro("alpine").unwrap();
+        let rootfs = distro_dir.join("rootfs");
+        fs::create_dir_all(rootfs.join("usr/lib")).unwrap();
+        fs::write(rootfs.join("usr/lib/os-release"), "ID=alpine\n").unwrap();
+        symlink("../usr/lib/os-release", rootfs.join("etc/os-release")).unwrap();
+
+        validate_rootfs_release_file(&rootfs, "alpine").unwrap();
+        assert!(manager.is_installed("alpine").unwrap());
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
     #[test]
     fn rejects_gzip_rootfs_with_wrong_digest() {
         let base = temp_dir();
