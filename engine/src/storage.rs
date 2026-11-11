@@ -259,10 +259,18 @@ impl StorageManager {
 
     /// Checks for a real rootfs directory, rejecting a symlink at that location.
     pub fn is_installed(&self, id: &str) -> io::Result<bool> {
-        let rootfs = self.distro_dir(id)?.join("rootfs");
+        let distro_dir = self.distro_dir(id)?;
+        let rootfs = distro_dir.join("rootfs");
         let etc_dir = rootfs.join("etc");
+        let directories = [
+            self.base_dir.clone(),
+            self.base_dir.join("distros"),
+            distro_dir,
+            rootfs.clone(),
+            etc_dir.clone(),
+        ];
 
-        for directory in [&rootfs, &etc_dir] {
+        for directory in &directories {
             match fs::symlink_metadata(directory) {
                 Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
                 Ok(_) => return Ok(false),
