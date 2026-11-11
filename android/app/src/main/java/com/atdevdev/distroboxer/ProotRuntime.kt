@@ -150,7 +150,7 @@ class ProotRuntime(context: Context) {
      */
     @Synchronized
     fun writeProjectFile(distroId: String, fileName: String, contents: String): File {
-        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
+        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
             "Nombre o extensión de proyecto no válida"
         }
         val rootfs = resolveRootfs(distroId)
