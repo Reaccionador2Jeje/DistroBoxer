@@ -15,4 +15,11 @@ internal object NativeBridge {
     external fun nativePrepareDistro(distroId: String, baseDirectory: String): Boolean
 
     external fun nativeIsInstalled(distroId: String, baseDirectory: String): Boolean
+
+    external fun nativeInstallTarGz(
+        distroId: String,
+        baseDirectory: String,
+        archivePath: String,
+        expectedSha256: String,
+    ): Boolean
 }
