@@ -3,6 +3,8 @@ package com.atdevdev.distroboxer
 import android.content.Context
 import java.io.File
 import java.io.InputStream
+import java.io.FileOutputStream
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
 /**
@@ -120,11 +122,11 @@ class ProotRuntime(context: Context) {
             }
             command += "DISPLAY=$display"
         }
-        command += listOf("/bin/sh", "-l")
+        command += listOf("/bin/sh", "-i")
 
         val process = ProcessBuilder(command)
             .directory(rootfs)
-            .redirectErrorStream(false)
+            .redirectErrorStream(true)
             .apply {
                 environment().clear()
                 environment()["HOME"] = appContext.filesDir.absolutePath
@@ -137,6 +139,54 @@ class ProotRuntime(context: Context) {
         return process
     }
 
+    /** Returns true only when a validated rootfs exists for this distro. */
+    fun isDistroInstalled(distroId: String): Boolean = runCatching {
+        resolveRootfs(distroId)
+    }.isSuccess
+
+    /**
+     * Copies a source file into /root/projects inside the selected Linux rootfs.
+     * The project name is restricted to a plain filename; no path fragments are accepted.
+     */
+    @Synchronized
+    fun writeProjectFile(distroId: String, fileName: String, contents: String): File {
+        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
+            "Nombre o extensión de proyecto no válida"
+        }
+        val rootfs = resolveRootfs(distroId)
+        val rootDirectory = File(rootfs, "root")
+        if (!rootDirectory.exists()) check(rootDirectory.mkdirs()) { "No se pudo crear /root" }
+        require(rootDirectory.canonicalFile.parentFile == rootfs.canonicalFile) {
+            "Directorio /root no válido"
+        }
+        val projectsDirectory = File(rootDirectory, "projects")
+        if (!projectsDirectory.exists()) check(projectsDirectory.mkdirs()) {
+            "No se pudo crear /root/projects"
+        }
+        val safeProjectsDirectory = projectsDirectory.canonicalFile
+        require(safeProjectsDirectory.parentFile == rootDirectory.canonicalFile && safeProjectsDirectory.isDirectory) {
+            "Directorio de proyectos no válido"
+        }
+        val destination = File(safeProjectsDirectory, fileName)
+        require(destination.canonicalFile.parentFile == safeProjectsDirectory) {
+            "Ruta de proyecto no válida"
+        }
+        val temporary = File(safeProjectsDirectory, ".$fileName.tmp")
+        require(temporary.canonicalFile.parentFile == safeProjectsDirectory) {
+            "Ruta temporal no válida"
+        }
+        try {
+            FileOutputStream(temporary).use { output ->
+                output.write(contents.toByteArray(StandardCharsets.UTF_8))
+                output.fd.sync()
+            }
+            if (destination.exists() && !destination.delete()) error("No se pudo reemplazar el archivo del proyecto")
+            check(temporary.renameTo(destination)) { "No se pudo guardar el proyecto en Linux" }
+        } finally {
+            temporary.delete()
+        }
+        destination
+    }
     @Synchronized
     fun stop() {
         activeProcess?.let { process ->
