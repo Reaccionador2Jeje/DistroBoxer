@@ -218,12 +218,14 @@ for numero in range(1, 6):
                         it.state == WorkInfo.State.BLOCKED
                 }
                 val failed = workInfos.lastOrNull { it.state == WorkInfo.State.FAILED }
+                val completed = workInfos.lastOrNull { it.state == WorkInfo.State.SUCCEEDED }
                 val status = when {
                     installed -> "Instalada · lista para abrir"
                     active -> "Descargando o instalando en segundo plano…"
                     failed != null -> failed.outputData.getString(DistroArchiveDownloadWorker.KEY_ERROR)
                         ?.let { "Error de instalación: $it" }
                         ?: "La instalación falló. Puedes volver a intentarlo."
+                    completed != null -> "La tarea terminó, pero no se encontró un rootfs válido. Reintenta la instalación."
                     else -> null
                 }
                 distro.id to status
