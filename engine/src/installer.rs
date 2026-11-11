@@ -61,6 +61,14 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
         validate_archive_path(&entry_path)?;
 
         let entry_type = entry.header().entry_type();
+        // Android's app sandbox cannot recreate device nodes or FIFOs. PRoot
+        // provides runtime /dev bindings, so safely skip these archive entries.
+        if entry_type.is_block_special()
+            || entry_type.is_character_special()
+            || entry_type.is_fifo()
+        {
+            continue;
+        }
         if entry_type.is_symlink() {
             let target = entry.link_name()?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "symbolic link has no target")
@@ -78,10 +86,18 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
             ));
         }
 
-        if !entry.unpack_in(&destination)? {
+        if !entry.unpack_in(&destination).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("failed to extract '{}': {error}", entry_path.display()),
+            )
+        })? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "archive entry would escape the extraction directory",
+                format!(
+                    "archive entry '{}' would escape the extraction directory",
+                    entry_path.display()
+                ),
             ));
         }
     }
