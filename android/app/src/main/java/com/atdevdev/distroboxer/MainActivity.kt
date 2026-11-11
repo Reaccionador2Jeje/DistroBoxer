@@ -617,9 +617,13 @@ private fun HomePage(
         item {
             SectionCard(
                 title = "Terminal Linux",
-                value = "Shell interactiva",
-                detail = "Abre Alpine con PRoot y ejecuta comandos directamente desde DistroBoxer.",
-                good = true,
+                value = if (installedCount > 0) "Lista para usar" else "Instala una distribución",
+                detail = if (installedCount > 0) {
+                    "Abre cualquiera de tus distribuciones instaladas y ejecuta comandos Linux."
+                } else {
+                    "Instala Alpine desde Distros. Después podrás abrir su shell PRoot desde aquí."
+                },
+                good = installedCount > 0,
             )
         }
         item {
