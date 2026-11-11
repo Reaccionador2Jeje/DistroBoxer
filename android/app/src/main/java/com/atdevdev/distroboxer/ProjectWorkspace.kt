@@ -17,7 +17,7 @@ class ProjectWorkspace(context: Context) {
     }
 
     fun save(fileName: String, source: String): File {
-        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
+        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
             "Nombre de archivo no válido"
         }
         val target = File(directory, fileName)
