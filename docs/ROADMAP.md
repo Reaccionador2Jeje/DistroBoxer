@@ -15,11 +15,11 @@
 ## 0.4.0 — Trusted installer foundation
 - [ ] Publish pinned, architecture-specific source manifests for every distro
 - [ ] Confirm official archive provenance and checksums/signatures
-- [ ] Implement secure tar.gz, tar.xz, and tar.zst extraction
+- [x] Implement secure gzip tar extraction with traversal and link validation\n- [ ] Add xz and zstd archive support
 - [ ] Implement OCI manifest, layer, and whiteout handling
-- [ ] Recover cleanly from interrupted downloads and extraction
+- [x] Stage and validate gzip rootfs before promoting it\n- [ ] Recover cleanly from interrupted downloads and extraction
 - [ ] Add storage usage reporting and install/uninstall UI
-- [ ] Complete and test Alpine first-install flow
+- [ ] Pin an official Alpine minirootfs URL and checksum\n- [ ] Complete and test Alpine first-install flow
 
 ## 0.5.0 — Android runtime
 - [ ] Review and package a compatible PRoot runtime with license notices
