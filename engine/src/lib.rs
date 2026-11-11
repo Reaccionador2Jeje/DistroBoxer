@@ -1,7 +1,7 @@
 //! DistroBoxer cross-platform engine.
 //!
-//! This crate provides distribution metadata, storage management, and safe path helpers.
-//! Download, extraction, and runtime execution are intentionally separate future stages.
+//! This crate provides distribution metadata, storage management, safe path
+//! helpers, and a platform-aware runtime backend contract.
 
 use std::path::{Path, PathBuf};
 
@@ -11,11 +11,15 @@ mod android_jni;
 pub mod installer;
 pub mod integrity;
 pub mod metadata;
+pub mod runtime;
 pub mod storage;
 
 pub use integrity::{sha256_file, verify_sha256};
-
 pub use metadata::{DistroMetadata, InstallStatus};
+pub use runtime::{
+    current_runtime_kind, current_runtime_status, RuntimeBackend, RuntimeError, RuntimeKind,
+    RuntimeState, RuntimeStatus,
+};
 pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
