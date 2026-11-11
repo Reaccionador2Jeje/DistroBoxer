@@ -25,9 +25,9 @@ import java.security.MessageDigest
 /**
  * Persistent, user-initiated archive download.
  *
- * The caller must supply a SHA-256 published by the distribution's trusted
- * release metadata. This worker downloads only; extraction is a separate,
- * security-sensitive engine operation and is deliberately not implied here.
+ * The caller supplies a pinned digest or a trusted checksum-manifest URL.
+ * The worker downloads and verifies; the next WorkManager step performs
+ * security-sensitive extraction through the Rust engine.
  */
 class DistroArchiveDownloadWorker(
     appContext: Context,
