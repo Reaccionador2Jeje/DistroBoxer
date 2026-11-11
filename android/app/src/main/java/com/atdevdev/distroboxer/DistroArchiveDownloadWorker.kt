@@ -11,8 +11,11 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -34,12 +37,16 @@ class DistroArchiveDownloadWorker(
     override suspend fun doWork(): Result {
         val distroId = inputData.getString(KEY_DISTRO_ID).orEmpty()
         val source = inputData.getString(KEY_SOURCE_URL).orEmpty()
-        val expectedHash = inputData.getString(KEY_SHA256).orEmpty().lowercase()
+        val expectedHashInput = inputData.getString(KEY_SHA256).orEmpty().lowercase()
+        val checksumUrl = inputData.getString(KEY_CHECKSUM_URL).orEmpty()
         val fileName = inputData.getString(KEY_FILE_NAME).orEmpty()
+        val hasPinnedHash = expectedHashInput.matches(Regex("[a-f0-9]{64}"))
+        val hasTrustedChecksumUrl = isTrustedSource(checksumUrl) &&
+            Uri.parse(source).host.equals(Uri.parse(checksumUrl).host, ignoreCase = true)
 
         if (!distroId.matches(Regex("[a-z0-9_-]{2,32}")) ||
             !fileName.matches(Regex("[a-zA-Z0-9._-]{1,120}")) ||
-            !expectedHash.matches(Regex("[a-f0-9]{64}")) ||
+            (!hasPinnedHash && !hasTrustedChecksumUrl) ||
             !isTrustedSource(source)
         ) {
             return Result.failure(workDataOf(KEY_ERROR to "Invalid download metadata or untrusted HTTPS source"))
@@ -60,6 +67,11 @@ class DistroArchiveDownloadWorker(
         }
 
         return try {
+            val expectedHash = if (hasPinnedHash) {
+                expectedHashInput
+            } else {
+                fetchExpectedSha256(checksumUrl, fileName)
+            }
             downloadAndVerify(source, temporary, expectedHash)
             if (target.exists() && !target.delete()) {
                 throw IllegalStateException("Cannot replace previous archive")
@@ -144,6 +156,50 @@ class DistroArchiveDownloadWorker(
         error("Unable to complete download")
     }
 
+    private suspend fun fetchExpectedSha256(checksumUrl: String, fileName: String): String =
+        withContext(Dispatchers.IO) {
+            val connection = URL(checksumUrl).openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = CONNECT_TIMEOUT_MS
+                connection.readTimeout = READ_TIMEOUT_MS
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("User-Agent", "DistroBoxer/0.3")
+                require(connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    "Checksum manifest request failed"
+                }
+
+                val body = ByteArrayOutputStream()
+                connection.inputStream.use { input ->
+                    val buffer = ByteArray(512)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        require(body.size() + count <= MAX_CHECKSUM_BYTES) {
+                            "Checksum manifest is unexpectedly large"
+                        }
+                        body.write(buffer, 0, count)
+                    }
+                }
+
+                val firstLine = body.toString(Charsets.US_ASCII.name())
+                    .lineSequence()
+                    .firstOrNull { it.isNotBlank() }
+                    ?: error("Checksum manifest is empty")
+                val match = CHECKSUM_LINE.matchEntire(firstLine.trim())
+                    ?: error("Checksum manifest has an unsupported format")
+                val listedFile = match.groupValues.getOrNull(2).orEmpty()
+                    .trim()
+                    .removePrefix("*")
+                    .substringAfterLast('/')
+                require(listedFile.isEmpty() || listedFile == fileName) {
+                    "Checksum manifest names a different archive"
+                }
+                match.groupValues[1].lowercase()
+            } finally {
+                connection.disconnect()
+            }
+        }
+
     private fun isTrustedSource(value: String): Boolean {
         val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
         return uri.scheme == "https" && isTrustedHost(uri.host)
@@ -189,6 +245,7 @@ class DistroArchiveDownloadWorker(
         const val KEY_SOURCE_URL = "source_url"
         const val KEY_SHA256 = "sha256"
         const val KEY_FILE_NAME = "file_name"
+        const val KEY_CHECKSUM_URL = "checksum_url"
         const val KEY_PROGRESS = "progress"
         const val KEY_ARCHIVE_PATH = "archive_path"
         const val KEY_ERROR = "error"
@@ -199,6 +256,8 @@ class DistroArchiveDownloadWorker(
         private const val READ_TIMEOUT_MS = 60_000
         private const val MAX_REDIRECTS = 5
         private const val MAX_ARCHIVE_BYTES = 4L * 1024L * 1024L * 1024L
+        private const val MAX_CHECKSUM_BYTES = 4096
+        private val CHECKSUM_LINE = Regex("""^\\s*([a-fA-F0-9]{64})(?:\\s+\\*?(.+?))?\\s*$""")
 
         private val TRUSTED_DOMAINS = setOf(
             "debian.org",
