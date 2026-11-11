@@ -138,7 +138,11 @@ pub fn current_runtime_status() -> RuntimeStatus {
         ),
     };
 
-    RuntimeStatus { kind, state, message }
+    RuntimeStatus {
+        kind,
+        state,
+        message,
+    }
 }
 
 #[cfg(test)]
