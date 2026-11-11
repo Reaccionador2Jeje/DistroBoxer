@@ -116,7 +116,8 @@ mod tests {
         assert!(!is_installed(&base, "debian"));
 
         fs::create_dir_all(rootfs.join("etc")).expect("rootfs directories should be created");
-        fs::write(rootfs.join("etc/os-release"), "ID=debian\n").expect("release file should be written");
+        fs::write(rootfs.join("etc/os-release"), "ID=debian\n")
+            .expect("release file should be written");
         assert!(is_installed(&base, "debian"));
 
         fs::remove_dir_all(&base).expect("test directory should be removed");
