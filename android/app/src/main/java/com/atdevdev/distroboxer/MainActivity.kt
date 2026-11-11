@@ -136,6 +136,9 @@ private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
+    val prootRuntime = remember { ProotRuntime(context) }
+    val prootAvailable = remember { prootRuntime.isRuntimeAvailable() }
+    val x11Available = remember { EmbeddedX11Backend().isAvailable(context) }
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var search by remember { mutableStateOf("") }
@@ -274,8 +277,8 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage()
-                AppTab.DESKTOP -> DesktopPage()
+                AppTab.TERMINAL -> TerminalPage(prootAvailable = prootAvailable)
+                AppTab.DESKTOP -> DesktopPage(prootAvailable = prootAvailable, x11Available = x11Available)
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
                     deviceAbi = deviceAbi,
@@ -420,7 +423,7 @@ private fun DistroCard(
 }
 
 @Composable
-private fun TerminalPage() {
+private fun TerminalPage(prootAvailable: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -445,13 +448,16 @@ private fun TerminalPage() {
                 Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
                 Spacer(Modifier.height(12.dp))
                 Text("\$  runtime status", color = Color(0xFF62E6B7))
-                Text("  PRoot: pendiente · X11: pendiente", color = Color(0xFFFFC078))
+                Text(
+                    if (prootAvailable) "  PRoot: ejecutable detectado" else "  PRoot: falta el binario Android",
+                    color = if (prootAvailable) Color(0xFF62E6B7) else Color(0xFFFFC078),
+                )
             }
         }
         SectionCard(
-            title = "Sesiones en segundo plano",
-            value = "Runtime pendiente",
-            detail = "El trabajo en segundo plano actual cubre descargas. Las sesiones Linux necesitarán un servicio persistente y controles para detenerlas.",
+            title = "Motor PRoot",
+            value = if (prootAvailable) "Ejecutable detectado" else "Pendiente de empaquetado",
+            detail = if (prootAvailable) "El runtime está disponible; falta conectar el servicio de sesiones y la terminal interactiva." else "El gestor de sesiones ya está preparado, pero todavía falta incluir un binario PRoot compatible con Android.",
             good = false,
         )
     }
@@ -459,7 +465,7 @@ private fun TerminalPage() {
 
 
 @Composable
-private fun DesktopPage() {
+private fun DesktopPage(prootAvailable: Boolean, x11Available: Boolean) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(13.dp),
@@ -481,7 +487,11 @@ private fun DesktopPage() {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(9.dp))
-                Text("Estado: integración en diseño", color = Color(0xFFFFC078), fontWeight = FontWeight.SemiBold)
+                Text(
+                    "PRoot: " + if (prootAvailable) "disponible" else "pendiente" + " · X11: " + if (x11Available) "disponible" else "pendiente",
+                    color = Color(0xFFFFC078),
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
         DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primera opción para móviles y equipos modestos", "PRIMER OBJETIVO")
