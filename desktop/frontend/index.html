@@ -21,6 +21,7 @@
         <button class="nav-item active" data-page="home"><span>⌂</span> Inicio</button>
         <button class="nav-item" data-page="distros"><span>▦</span> Distribuciones</button>
         <button class="nav-item" data-page="terminal"><span>›_</span> Terminal</button>
+        <button class="nav-item" data-page="desktop"><span>▣</span> Escritorio</button>
         <button class="nav-item" data-page="settings"><span>⚙</span> Ajustes</button>
       </nav>
       <div class="sidebar-bottom">
@@ -52,6 +53,7 @@
         <div class="quick-grid">
           <button class="quick-card" data-go="distros"><span class="quick-icon">▦</span><strong>Distribuciones</strong><small>Explora los perfiles Linux disponibles.</small><b>Ver catálogo →</b></button>
           <button class="quick-card" data-go="terminal"><span class="quick-icon terminal-icon">›_</span><strong>Terminal</strong><small>El espacio para tus futuras sesiones de shell.</small><b>Abrir terminal →</b></button>
+          <button class="quick-card" data-go="desktop"><span class="quick-icon">▣</span><strong>Escritorio gráfico</strong><small>XFCE, LXQt y otros entornos sobre X11.</small><b>Ver escritorios →</b></button>
         </div>
       </section>
       <section id="page-distros" class="page">
@@ -66,6 +68,16 @@
           <div class="terminal-content"><p class="term-green">Atdev Dev · DistroBoxer Shell</p><p>Bienvenido al futuro espacio de terminal.</p><p class="term-muted">Todavía no hay una distribución iniciada.</p><br><p class="term-green">$ distroboxer runtime status</p><p class="term-warning">PRoot: pendiente · Shell interactiva: pendiente · X11: pendiente</p><div class="terminal-cursor"><span>›</span> Esperando integración del runtime<span class="cursor"></span></div></div>
         </div>
         <div class="notice-card"><strong>¿Qué falta para ejecutar comandos?</strong><p>Integrar PRoot, preparar el entorno de shell y gestionar sesiones persistentes. Esta pantalla es la interfaz de destino; todavía no ejecuta comandos ficticios.</p></div>
+      </section>
+      <section id="page-desktop" class="page">
+        <div class="page-intro"><div><span class="eyebrow">GRAPHICAL LINUX</span><h2>Escritorios Linux</h2><p>Entornos gráficos que planeamos ejecutar sobre X11.</p></div><span class="count-pill pending">INTEGRACIÓN PENDIENTE</span></div>
+        <div class="display-panel"><div class="display-icon">▣</div><div><span class="eyebrow">DISPLAY SERVER</span><h3>X11 + PRoot</h3><p>El servidor X11 muestra las ventanas. PRoot ejecuta los procesos Linux sin root. El entorno de escritorio aporta paneles, ventanas, menú y aplicaciones.</p></div></div>
+        <div class="desktop-grid">
+          <article class="desktop-card featured"><span class="desktop-tag">PRIMER OBJETIVO</span><div class="desktop-art xfce-art">XFCE</div><h3>XFCE</h3><p>Completo, clásico y razonablemente ligero. Será el primer escritorio que integremos.</p><small>Panel · Menú · Gestor de ventanas</small></article>
+          <article class="desktop-card"><span class="desktop-tag">PLANIFICADO</span><div class="desktop-art lxqt-art">LXQt</div><h3>LXQt</h3><p>Una alternativa modular con un enfoque ligero.</p><small>Qt · Panel · Sesión</small></article>
+          <article class="desktop-card"><span class="desktop-tag">PLANIFICADO</span><div class="desktop-art mate-art">MATE</div><h3>MATE</h3><p>Una experiencia tradicional con paneles y menú de aplicaciones.</p><small>Paneles · Menús · Escritorio</small></article>
+        </div>
+        <div class="notice-card"><strong>Sin compras ni versiones Pro</strong><p>Los entornos de escritorio son software libre. DistroBoxer no tendrá funciones gráficas bloqueadas por pagos. Cada escritorio se instalará desde los repositorios de la distribución seleccionada.</p></div>
       </section>
       <section id="page-settings" class="page">
         <div class="page-intro"><div><span class="eyebrow">PREFERENCES</span><h2>Ajustes</h2><p>Información de esta compilación de DistroBoxer.</p></div></div>
