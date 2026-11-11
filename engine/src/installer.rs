@@ -64,7 +64,9 @@ pub fn extract_tar_with_progress<R: Read>(
         let mut entry = item?;
         entry_count += 1;
         if entry_count == 1 || entry_count % 500 == 0 {
-            progress(format!("Extrayendo archivos Linux… {entry_count} entradas procesadas"));
+            progress(format!(
+                "Extrayendo archivos Linux… {entry_count} entradas procesadas"
+            ));
         }
         if entry_count > MAX_ARCHIVE_ENTRIES {
             return Err(io::Error::new(
@@ -102,7 +104,7 @@ pub fn extract_tar_with_progress<R: Read>(
                 absolute_link_as_relative(&entry_path, &target)?
             } else {
                 validate_symlink_target(&entry_path, &target)?;
-                target
+                target.to_path_buf()
             };
             deferred_symlinks.push((entry_path, safe_target));
             continue;
@@ -134,15 +136,21 @@ pub fn extract_tar_with_progress<R: Read>(
         }
     }
 
-    progress(format!("Creando {} enlaces simbólicos…", deferred_symlinks.len()));
+    progress(format!(
+        "Creando {} enlaces simbólicos…",
+        deferred_symlinks.len()
+    ));
     for (link_path, target) in deferred_symlinks {
         let full_link_path = destination.join(&link_path);
         let parent = full_link_path.parent().ok_or_else(invalid_archive_path)?;
         fs::create_dir_all(parent)?;
-        std::os::unix::fs::symlink(&target, &full_link_path).map_err(|error| {
+        create_symlink(&target, &full_link_path).map_err(|error| {
             io::Error::new(
                 error.kind(),
-                format!("failed to create symlink '{}': {error}", link_path.display()),
+                format!(
+                    "failed to create symlink '{}': {error}",
+                    link_path.display()
+                ),
             )
         })?;
     }
@@ -151,8 +159,24 @@ pub fn extract_tar_with_progress<R: Read>(
     Ok(())
 }
 
+#[cfg(unix)]
+fn create_symlink(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn create_symlink(target: &Path, link: &Path) -> io::Result<()> {
+    if target.is_dir() {
+        std::os::windows::fs::symlink_dir(target, link)
+    } else {
+        std::os::windows::fs::symlink_file(target, link)
+    }
+}
+
 fn absolute_link_as_relative(link_path: &Path, target: &Path) -> io::Result<std::path::PathBuf> {
-    let target = target.strip_prefix("/").map_err(|_| invalid_archive_path())?;
+    let target = target
+        .strip_prefix("/")
+        .map_err(|_| invalid_archive_path())?;
     validate_archive_path(target)?;
 
     let parent = link_path.parent().unwrap_or_else(|| Path::new(""));
@@ -289,11 +313,8 @@ mod tests {
     #[test]
     fn rewrites_absolute_linux_symlinks_to_safe_relative_targets() {
         assert_eq!(
-            absolute_link_as_relative(
-                Path::new("etc/mtab"),
-                Path::new("/proc/self/mounts"),
-            )
-            .unwrap(),
+            absolute_link_as_relative(Path::new("etc/mtab"), Path::new("/proc/self/mounts"),)
+                .unwrap(),
             Path::new("../proc/self/mounts")
         );
     }
