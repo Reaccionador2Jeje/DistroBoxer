@@ -13,7 +13,7 @@
 - [x] Android app listing text and F-Droid preparation checklist
 
 ## 0.4.0 — Trusted installer foundation
-- [ ] Publish pinned, architecture-specific source manifests for every distro
+- [x] Pin Alpine 3.24.4 official ARM64/x86_64 source and checksum-manifest URLs\n- [ ] Publish pinned, architecture-specific source manifests for remaining distros
 - [ ] Confirm official archive provenance and checksums/signatures
 - [x] Implement secure gzip tar extraction with traversal and link validation
 - [ ] Add xz and zstd archive support
