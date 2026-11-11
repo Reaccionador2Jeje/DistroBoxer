@@ -121,7 +121,8 @@ impl RuntimeBackend for LinuxProotBackend {
         RuntimeStatus {
             kind: RuntimeKind::LinuxProot,
             state: RuntimeState::AvailableForDetection,
-            message: "Linux PRoot executable validated; a distribution rootfs is checked when launching",
+            message:
+                "Linux PRoot executable validated; a distribution rootfs is checked when launching",
         }
     }
 }
@@ -200,8 +201,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
 
-        let backend = LinuxProotBackend::with_executable(&executable, directory.join("data"))
-            .unwrap();
+        let backend =
+            LinuxProotBackend::with_executable(&executable, directory.join("data")).unwrap();
         assert_eq!(
             backend.launch("../outside").unwrap_err().kind(),
             io::ErrorKind::InvalidInput
