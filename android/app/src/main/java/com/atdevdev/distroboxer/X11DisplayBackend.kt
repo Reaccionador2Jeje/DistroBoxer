@@ -38,6 +38,8 @@ class EmbeddedX11Backend : X11DisplayBackend {
         server?.let { return it.screen }
         check(isAvailable(context)) { "El servidor X11 no está incluido en esta compilación." }
         val instance = XServer(context.applicationContext, DISPLAY_PORT, null)
+        instance.setAccessControl(true)
+        instance.accessControlHosts.add(0x7f000001) // IPv4 loopback only
         check(instance.start()) { "No se pudo iniciar X11 en el puerto $DISPLAY_PORT." }
         server = instance
         return instance.screen
