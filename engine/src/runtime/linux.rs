@@ -78,7 +78,8 @@ impl LinuxProotBackend {
         command.spawn()
     }
 
-    fn validated_rootfs(&self, distro_id: &str) -> io::Result<PathBuf> {
+    /// Returns the validated rootfs path for a supported, installed distribution.
+    pub fn validated_rootfs(&self, distro_id: &str) -> io::Result<PathBuf> {
         if !self.storage.is_installed(distro_id)? {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
