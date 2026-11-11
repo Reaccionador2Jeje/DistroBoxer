@@ -14,6 +14,33 @@ pub enum InstallStatus {
     Failed,
 }
 
+impl InstallStatus {
+    /// Returns whether a lifecycle transition is valid.
+    pub fn can_transition_to(self, next: Self) -> bool {
+        use InstallStatus::*;
+
+        self == next
+            || matches!(
+                (self, next),
+                (NotInstalled, Preparing)
+                    | (NotInstalled, Failed)
+                    | (Preparing, Downloading)
+                    | (Preparing, Failed)
+                    | (Preparing, NotInstalled)
+                    | (Downloading, Extracting)
+                    | (Downloading, Failed)
+                    | (Downloading, NotInstalled)
+                    | (Extracting, Installed)
+                    | (Extracting, Failed)
+                    | (Extracting, NotInstalled)
+                    | (Installed, Preparing)
+                    | (Installed, NotInstalled)
+                    | (Failed, Preparing)
+                    | (Failed, NotInstalled)
+            )
+    }
+}
+
 /// Metadata persisted in each distribution's private storage directory.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DistroMetadata {
