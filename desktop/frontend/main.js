@@ -7,6 +7,7 @@ const pages = {
   home: ["Tu espacio Linux", "page-home"],
   distros: ["Distribuciones", "page-distros"],
   terminal: ["Terminal", "page-terminal"],
+  desktop: ["Escritorio gráfico", "page-desktop"],
   settings: ["Ajustes", "page-settings"],
 };
 
