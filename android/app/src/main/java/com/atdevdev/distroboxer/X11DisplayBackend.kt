@@ -1,63 +1,76 @@
 package com.atdevdev.distroboxer
 
 import android.content.Context
+import android.view.View
+import au.com.darkside.xserver.ScreenView
+import au.com.darkside.xserver.XServer
 
 /**
- * Display server contract. PRoot and the display server must run in the same
- * Android application sandbox so the X11 Unix socket can be shared safely.
+ * Embedded X11 display running inside DistroBoxer's Android process.
+ * The server listens only on 127.0.0.1:6001 (display 127.0.0.1:1).
  */
 interface X11DisplayBackend {
     val id: String
     fun isAvailable(context: Context): Boolean
     fun displayName(): String
     fun environment(): Map<String, String>
+    fun start(context: Context): View
+    fun stop()
 }
 
-/**
- * Embedded backend reserved for the DistroBoxer-owned Android X server.
- *
- * This backend intentionally reports unavailable until the native X server
- * implementation and its Android Surface renderer are shipped in the APK.
- * It never pretends that an installed third-party X11 app is an embedded server.
- */
 class EmbeddedX11Backend : X11DisplayBackend {
-    override val id: String = "embedded-x11"
+    override val id: String = "embedded-java-x11"
 
-    override fun isAvailable(context: Context): Boolean {
-        return try {
-            context.applicationContext.classLoader
-                .loadClass("com.atdevdev.distroboxer.nativebridge.X11Server")
-            false // Native server bridge is not packaged in this release yet.
-        } catch (_: ClassNotFoundException) {
-            false
-        } catch (_: LinkageError) {
-            false
-        }
+    @Volatile
+    private var server: XServer? = null
+
+    override fun isAvailable(context: Context): Boolean = try {
+        context.applicationContext.classLoader.loadClass("au.com.darkside.xserver.XServer")
+        true
+    } catch (_: ClassNotFoundException) {
+        false
+    } catch (_: LinkageError) {
+        false
     }
 
-    override fun displayName(): String = ":1"
+    @Synchronized
+    override fun start(context: Context): ScreenView {
+        server?.let { return it.screen }
+        check(isAvailable(context)) { "El servidor X11 no está incluido en esta compilación." }
+        val instance = XServer(context.applicationContext, DISPLAY_PORT, null)
+        check(instance.start()) { "No se pudo iniciar X11 en el puerto $DISPLAY_PORT." }
+        server = instance
+        return instance.screen
+    }
+
+    @Synchronized
+    override fun stop() {
+        server?.stop()
+        server = null
+    }
+
+    override fun displayName(): String = DISPLAY_ADDRESS
 
     override fun environment(): Map<String, String> = mapOf(
-        "DISPLAY" to ":1",
+        "DISPLAY" to DISPLAY_ADDRESS,
         "TMPDIR" to "/tmp",
     )
+
+    companion object {
+        const val DISPLAY_PORT = 6001
+        const val DISPLAY_ADDRESS = "127.0.0.1:1"
+    }
 }
 
-/**
- * Shared display configuration used by a future native X11 server.
- * A private socket path is kept under app cache; no world-writable TCP listener
- * or externally exposed desktop port is created.
- */
+/** Validated dimensions shared by the Android display surface and desktop UI. */
 data class X11SessionConfig(
-    val display: String = ":1",
-    val socketDirectory: String,
+    val display: String = EmbeddedX11Backend.DISPLAY_ADDRESS,
     val width: Int,
     val height: Int,
     val dpi: Int = 160,
 ) {
     init {
-        require(display.matches(Regex(":[0-9]{1,2}")))
-        require(socketDirectory.startsWith("/") && !socketDirectory.contains(".."))
+        require(display == EmbeddedX11Backend.DISPLAY_ADDRESS)
         require(width in 320..4096)
         require(height in 320..4096)
         require(dpi in 80..640)
