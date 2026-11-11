@@ -126,8 +126,9 @@ impl StorageManager {
     /// Checks for a real rootfs directory, rejecting a symlink at that location.
     pub fn is_installed(&self, id: &str) -> io::Result<bool> {
         let rootfs = self.distro_dir(id)?.join("rootfs");
-        match fs::symlink_metadata(rootfs) {
-            Ok(metadata) => Ok(metadata.is_dir() && !metadata.file_type().is_symlink()),
+        let release_file = rootfs.join("etc/os-release");
+        match fs::symlink_metadata(&release_file) {
+            Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         }
