@@ -10,7 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 
-/** Schedules a verified archive transfer that survives activity/process recreation. */
+/** Schedules a verified download followed by native rootfs extraction. */
 object DistroDownloadScheduler {
     fun enqueue(
         context: Context,
@@ -19,7 +19,7 @@ object DistroDownloadScheduler {
         expectedSha256: String,
         fileName: String,
     ) {
-        val request = OneTimeWorkRequestBuilder<DistroArchiveDownloadWorker>()
+        val download = OneTimeWorkRequestBuilder<DistroArchiveDownloadWorker>()
             .setInputData(
                 workDataOf(
                     DistroArchiveDownloadWorker.KEY_DISTRO_ID to distroId,
@@ -36,10 +36,15 @@ object DistroDownloadScheduler {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "distroboxer-download-$distroId",
-            ExistingWorkPolicy.KEEP,
-            request,
-        )
+        val install = OneTimeWorkRequestBuilder<DistroRootfsInstallWorker>().build()
+
+        WorkManager.getInstance(context)
+            .beginUniqueWork(
+                "distroboxer-install-$distroId",
+                ExistingWorkPolicy.KEEP,
+                download,
+            )
+            .then(install)
+            .enqueue()
     }
 }
