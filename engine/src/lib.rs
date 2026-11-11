@@ -1,9 +1,15 @@
 //! DistroBoxer cross-platform engine.
 //!
-//! This crate currently provides metadata and safe storage-path helpers.
-//! Runtime installation and process execution will be added in later versions.
+//! This crate provides distribution metadata, storage management, and safe path helpers.
+//! Download, extraction, and runtime execution are intentionally separate future stages.
 
 use std::path::{Path, PathBuf};
+
+pub mod metadata;
+pub mod storage;
+
+pub use metadata::{DistroMetadata, InstallStatus};
+pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +66,7 @@ pub fn distro_path(base: impl AsRef<Path>, id: &str) -> Option<PathBuf> {
 /// Checks whether the expected root filesystem directory exists.
 pub fn is_installed(base: impl AsRef<Path>, id: &str) -> bool {
     distro_path(base, id)
-        .map(|path| path.join("rootfs").is_dir())
+        .map(|path| path.join("rootfs").join("etc/os-release").is_file())
         .unwrap_or(false)
 }
 
@@ -109,7 +115,8 @@ mod tests {
 
         assert!(!is_installed(&base, "debian"));
 
-        fs::create_dir_all(&rootfs).expect("rootfs directory should be created");
+        fs::create_dir_all(rootfs.join("etc")).expect("rootfs directories should be created");
+        fs::write(rootfs.join("etc/os-release"), "ID=debian\n").expect("release file should be written");
         assert!(is_installed(&base, "debian"));
 
         fs::remove_dir_all(&base).expect("test directory should be removed");
