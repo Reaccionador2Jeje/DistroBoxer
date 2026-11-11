@@ -1,5 +1,6 @@
 package com.atdevdev.distroboxer
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -51,6 +52,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun DistroBoxerScreen() {
+    val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -65,6 +68,12 @@ private fun DistroBoxerScreen() {
             Text(
                 "Tu gestor de entornos Linux",
                 style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Text(
+                "Arquitectura del dispositivo: $deviceAbi",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
