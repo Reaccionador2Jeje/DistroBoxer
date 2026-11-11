@@ -1,0 +1,174 @@
+package com.atdevdev.distroboxer
+
+import android.content.Context
+import java.io.File
+import java.io.InputStream
+import java.security.MessageDigest
+
+/**
+ * Starts an installed Linux rootfs with PRoot inside the app's own sandbox.
+ *
+ * The PRoot executable must be provisioned at filesDir/runtime/bin/proot by a
+ * trusted, checksum-verified runtime installer. It is deliberately not searched
+ * for in shared storage or another application's private directory.
+ */
+class ProotRuntime(context: Context) {
+    private val appContext = context.applicationContext
+    private val filesRoot = appContext.filesDir.canonicalFile
+    private val prootFile = File(filesRoot, "runtime/bin/proot")
+    private var activeProcess: Process? = null
+
+    @Synchronized
+    fun isRuntimeAvailable(): Boolean {
+        return isSafeRegularFile(prootFile) && prootFile.canExecute()
+    }
+
+    /**
+     * Installs a PRoot executable from a trusted stream after verifying SHA-256.
+     * The caller must obtain the stream and expected digest from a pinned,
+     * reviewed runtime manifest; this method never accepts an unverified binary.
+     */
+    @Synchronized
+    fun installRuntime(input: InputStream, expectedSha256: String) {
+        require(expectedSha256.matches(Regex("[a-fA-F0-9]{64}"))) {
+            "SHA-256 inválido"
+        }
+
+        val binDirectory = File(filesRoot, "runtime/bin")
+        if (!binDirectory.exists() && !binDirectory.mkdirs()) {
+            error("No se pudo crear el directorio del runtime")
+        }
+        require(binDirectory.canonicalFile.parentFile == File(filesRoot, "runtime").canonicalFile) {
+            "Directorio de runtime no válido"
+        }
+
+        val temporary = File(binDirectory, "proot.download")
+        val destination = File(binDirectory, "proot")
+        try {
+            temporary.outputStream().use { output -> input.use { it.copyTo(output) } }
+            val actual = sha256(temporary)
+            require(actual.equals(expectedSha256, ignoreCase = true)) {
+                "La verificación SHA-256 de PRoot falló"
+            }
+            check(temporary.setExecutable(true, true)) {
+                "Android no permitió marcar PRoot como ejecutable"
+            }
+            if (destination.exists() && !destination.delete()) {
+                error("No se pudo reemplazar el runtime anterior")
+            }
+            check(temporary.renameTo(destination)) {
+                "No se pudo instalar PRoot"
+            }
+        } finally {
+            temporary.delete()
+        }
+    }
+
+    /**
+     * Opens an interactive login shell in the selected distribution.
+     * The returned Process exposes stdin/stdout/stderr for a terminal UI.
+     */
+    @Synchronized
+    fun startShell(distroId: String, display: String? = null): Process {
+        require(activeProcess?.isAlive != true) { "Ya existe una sesión Linux activa" }
+        require(isRuntimeAvailable()) { "El ejecutable PRoot todavía no está instalado" }
+
+        val rootfs = resolveRootfs(distroId)
+        val command = mutableListOf(
+            prootFile.absolutePath,
+            "--kill-on-exit",
+            "--link2symlink",
+            "--sysvipc",
+            "-0",
+            "-r", rootfs.absolutePath,
+            "-w", "/root",
+            "-b", "/dev",
+            "-b", "/proc",
+            "-b", "/sys",
+            "-b", "/system",
+            "-b", "/apex",
+            "/usr/bin/env", "-i",
+            "HOME=/root",
+            "USER=root",
+            "LOGNAME=root",
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "LANG=C.UTF-8",
+            "TERM=xterm-256color",
+            "TMPDIR=/tmp",
+        )
+        if (!display.isNullOrBlank()) {
+            require(display.matches(Regex(":[0-9]{1,2}(\.[0-9]{1,2})?"))) {
+                "DISPLAY no válido"
+            }
+            command += "DISPLAY=$display"
+        }
+        command += listOf("/bin/sh", "-l")
+
+        val process = ProcessBuilder(command)
+            .directory(rootfs)
+            .redirectErrorStream(false)
+            .apply {
+                environment().clear()
+                environment()["HOME"] = appContext.filesDir.absolutePath
+                environment()["TMPDIR"] = appContext.cacheDir.absolutePath
+                environment()["PATH"] = "/system/bin:/system/xbin"
+            }
+            .start()
+
+        activeProcess = process
+        return process
+    }
+
+    @Synchronized
+    fun stop() {
+        activeProcess?.let { process ->
+            if (process.isAlive) {
+                process.destroy()
+                if (process.isAlive) process.destroyForcibly()
+            }
+        }
+        activeProcess = null
+    }
+
+    @Synchronized
+    fun isRunning(): Boolean = activeProcess?.isAlive == true
+
+    private fun resolveRootfs(distroId: String): File {
+        require(distroId.matches(Regex("[a-z][a-z0-9_-]{1,31}"))) {
+            "Identificador de distribución no válido"
+        }
+        val distroDirectory = File(filesRoot, "distros/$distroId").canonicalFile
+        require(distroDirectory.parentFile == File(filesRoot, "distros").canonicalFile) {
+            "Ruta de distribución no válida"
+        }
+        val rootfs = File(distroDirectory, "rootfs").canonicalFile
+        require(rootfs.parentFile == distroDirectory) { "Ruta rootfs no válida" }
+        require(isSafeDirectory(rootfs)) { "No existe un rootfs Linux válido" }
+        require(isSafeRegularFile(File(rootfs, "etc/os-release"))) {
+            "La distribución no contiene etc/os-release"
+        }
+        require(File(rootfs, "bin/sh").exists() || File(rootfs, "usr/bin/sh").exists()) {
+            "La distribución no contiene un shell"
+        }
+        return rootfs
+    }
+
+    private fun isSafeDirectory(file: File): Boolean =
+        file.exists() && file.isDirectory && !File(file.path).canonicalPath.let { it != file.absolutePath }
+
+    private fun isSafeRegularFile(file: File): Boolean =
+        file.exists() && file.isFile && file.canonicalFile == file.absoluteFile
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+}
