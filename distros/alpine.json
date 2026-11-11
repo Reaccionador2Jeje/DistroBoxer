@@ -2,6 +2,7 @@
   "id": "alpine",
   "name": "Alpine Linux",
   "package_manager": "apk",
+  "architectures": ["aarch64", "x86_64"],
   "status": "planned",
   "rootfs_source": null,
   "checksum": null
