@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -162,7 +163,11 @@ private fun DistroBoxerScreen() {
                 ?: "PRoot instalado y verificado para $runtimeAbi."
         }
     }
-    val x11Available = remember { EmbeddedX11Backend().isAvailable(context) }
+    val x11Backend = remember { EmbeddedX11Backend() }
+    val x11Available = remember { x11Backend.isAvailable(context) }
+    var x11Running by remember { mutableStateOf(false) }
+    var x11ScreenView by remember { mutableStateOf<android.view.View?>(null) }
+    var x11Status by remember { mutableStateOf("Servidor X11 detenido") }
     val workspace = remember(context) { ProjectWorkspace(context) }
     val coroutineScope = rememberCoroutineScope()
     val storageStates = remember { mutableStateMapOf<String, String>() }
@@ -181,20 +186,28 @@ for numero in range(1, 6):
     var terminalCommand by remember { mutableStateOf("") }
     var terminalStatus by remember { mutableStateOf("Sesión cerrada") }
     var terminalSession by remember { mutableStateOf<TerminalSession?>(null) }
+    var terminalDisplay by remember { mutableStateOf<String?>(null) }
 
-    suspend fun openLinuxShell(distroId: String = "alpine"): TerminalSession {
+    suspend fun openLinuxShell(distroId: String = "alpine", display: String? = null): TerminalSession {
         val current = terminalSession
-        if (current != null && current.isAlive()) return current
-        val process = withContext(Dispatchers.IO) { prootRuntime.startShell(distroId) }
+        if (current != null && current.isAlive() && terminalDisplay == display) return current
+        if (current != null) {
+            current.close()
+            terminalSession = null
+            prootRuntime.stop()
+        }
+        val process = withContext(Dispatchers.IO) { prootRuntime.startShell(distroId, display) }
         val session = TerminalSession(
             process = process,
             onOutput = { chunk -> terminalOutput = (terminalOutput + chunk).takeLast(18000) },
             onExit = { code ->
                 terminalStatus = "La shell terminó (código $code)"
                 terminalSession = null
+                terminalDisplay = null
             },
         )
         terminalSession = session
+        terminalDisplay = display
         terminalStatus = "Conectado a $distroId"
         terminalOutput += "\n[ DistroBoxer: sesión iniciada en $distroId ]\n"
         return session
@@ -207,6 +220,37 @@ for numero in range(1, 6):
             } catch (error: Exception) {
                 terminalStatus = "No se pudo iniciar"
                 terminalOutput += "\n[error] ${error.message ?: "No se pudo iniciar PRoot"}\n"
+            }
+        }
+    }
+
+    fun startX11() {
+        runCatching {
+            x11ScreenView = x11Backend.start(context)
+            x11Running = true
+            x11Status = "X11 activo en \${x11Backend.displayName()} · solo loopback"
+        }.onFailure {
+            x11Running = false
+            x11Status = "No se pudo iniciar X11: \${it.message}"
+        }
+    }
+
+    fun stopX11() {
+        x11Backend.stop()
+        x11ScreenView = null
+        x11Running = false
+        x11Status = "Servidor X11 detenido"
+    }
+
+    fun launchXfce() {
+        coroutineScope.launch {
+            try {
+                check(x11Running) { "Inicia primero el servidor X11." }
+                val session = openLinuxShell("alpine", x11Backend.displayName())
+                session.sendLine("startxfce4")
+                x11Status = "Comando startxfce4 enviado. Revisa la terminal si el escritorio no aparece."
+            } catch (error: Exception) {
+                x11Status = "No se pudo iniciar XFCE: \${error.message ?: "error desconocido"}. Comprueba que Alpine y XFCE estén instalados."
             }
         }
     }
@@ -401,7 +445,16 @@ for numero in range(1, 6):
                     onSave = { saveProject() },
                     onRun = { runProject() },
                 )
-                AppTab.DESKTOP -> DesktopPage(prootAvailable = prootAvailable, x11Available = x11Available)
+                AppTab.DESKTOP -> DesktopPage(
+                    prootAvailable = prootAvailable,
+                    x11Available = x11Available,
+                    x11Running = x11Running,
+                    x11ScreenView = x11ScreenView,
+                    x11Status = x11Status,
+                    onStartX11 = { startX11() },
+                    onStopX11 = { stopX11() },
+                    onLaunchDesktop = { launchXfce() },
+                )
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
                     deviceAbi = deviceAbi,
@@ -671,13 +724,22 @@ private fun ProgrammingPage(
 
 
 @Composable
-private fun DesktopPage(prootAvailable: Boolean, x11Available: Boolean) {
+private fun DesktopPage(
+    prootAvailable: Boolean,
+    x11Available: Boolean,
+    x11Running: Boolean,
+    x11ScreenView: android.view.View?,
+    x11Status: String,
+    onStartX11: () -> Unit,
+    onStopX11: () -> Unit,
+    onLaunchDesktop: () -> Unit,
+) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
         Text("Escritorios Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Entornos gráficos sobre X11", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Servidor X11 integrado en DistroBoxer", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
@@ -688,34 +750,62 @@ private fun DesktopPage(prootAvailable: Boolean, x11Available: Boolean) {
                 Text("X11 + PRoot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "DistroBoxer necesitará un servidor gráfico Android, un socket X11 compartido con el contenedor y un gestor de sesiones para iniciar el escritorio.",
+                    "El servidor X11 se ejecuta dentro de DistroBoxer y muestra su pantalla en esta vista. PRoot conecta las aplicaciones Linux al display local 127.0.0.1:1.",
                     color = Color(0xFFC4D5DF),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Spacer(Modifier.height(9.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    "PRoot: " + (if (prootAvailable) "disponible" else "pendiente") + " · X11: " + (if (x11Available) "disponible" else "pendiente"),
-                    color = Color(0xFFFFC078),
+                    "PRoot: " + (if (prootAvailable) "instalado" else "pendiente") +
+                        " · X11: " + (if (x11Available) "integrado" else "no disponible"),
+                    color = if (x11Available && prootAvailable) MaterialTheme.colorScheme.primary else Color(0xFFFFC078),
                     fontWeight = FontWeight.SemiBold,
                 )
+                Text(x11Status, color = Color(0xFFC4D5DF), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onStartX11, enabled = x11Available && !x11Running) { Text("Iniciar X11") }
+                    Button(onClick = onStopX11, enabled = x11Running) { Text("Detener") }
+                }
             }
         }
-        DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primera opción para móviles y equipos modestos", "PRIMER OBJETIVO")
-        DesktopEnvironmentCard("LXQt", "Ligero y modular", "Alternativa con bajo consumo de recursos", "PLANIFICADO")
-        DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional con paneles y menú", "PLANIFICADO")
+        val activeView = x11ScreenView
+        if (x11Running && activeView != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Black),
+            ) {
+                AndroidView(
+                    factory = { activeView },
+                    modifier = Modifier.fillMaxWidth().height(430.dp),
+                )
+            }
+            Button(
+                onClick = onLaunchDesktop,
+                enabled = prootAvailable,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Iniciar sesión XFCE")
+            }
+        }
+        DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primer escritorio que probaremos en el display integrado", "EXPERIMENTAL")
+        DesktopEnvironmentCard("LXQt", "Ligero y modular", "Alternativa para una etapa posterior", "PLANIFICADO")
+        DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional para una etapa posterior", "PLANIFICADO")
         SectionCard(
-            title = "Cómo funcionará",
-            value = "X server → PRoot → escritorio",
-            detail = "El servidor X11 dibuja la interfaz; PRoot ejecuta los procesos Linux sin root; XFCE/LXQt/MATE son los escritorios que se muestran.",
+            title = "Conexión",
+            value = "127.0.0.1:1 · puerto 6001",
+            detail = "El listener X11 está limitado a loopback; no acepta conexiones desde la red Wi-Fi. El motor Java es ligero y no garantiza GLX ni compatibilidad total con todos los escritorios.",
             good = true,
         )
         Text(
-            "No se necesita pagar por los escritorios. DistroBoxer será gratuito; cada entorno se descargará desde los repositorios oficiales de su distribución.",
+            "Para iniciar XFCE necesitas tener Alpine instalado y el escritorio instalado dentro de esa distribución. En Alpine puedes probar desde Terminal: apk update && apk add xfce4 dbus. La compatibilidad del escritorio debe validarse en el teléfono.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
+
 
 @Composable
 private fun DesktopEnvironmentCard(name: String, subtitle: String, detail: String, status: String) {
