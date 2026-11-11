@@ -1,36 +1,85 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#101827">
-  <meta name="description" content="Manage Linux distribution environments with DistroBoxer.">
+  <meta name="theme-color" content="#09111f">
+  <meta name="description" content="DistroBoxer — tu centro de entornos Linux.">
   <link rel="icon" href="./distroboxer.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
-  <title>DistroBoxer</title>
+  <title>DistroBoxer — Atdev Dev</title>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <img src="../icons/distroboxer.svg" alt="" width="42" height="42">
-      <div><strong>DistroBoxer</strong><span>Linux environments</span></div>
-    </div>
-    <span class="platform">DESKTOP PREVIEW · 0.3.0</span>
-  </header>
-  <main>
-    <section class="hero">
-      <p class="eyebrow">ONE ENGINE · MULTIPLE DISTROS</p>
-      <h1>Your Linux environments,<br><span>one place.</span></h1>
-      <p class="intro">Browse supported distributions. Installation and runtime controls will arrive when each bootstrap source has been verified.</p>
-      <div class="system" id="engine-status">Connecting to Rust engine…</div>
-    </section>
-    <section class="section-heading">
-      <div><p class="eyebrow">CATALOG</p><h2>Distributions</h2></div>
-      <span id="distro-count">Loading…</span>
-    </section>
-    <section id="catalog" class="catalog" aria-live="polite"></section>
-  </main>
-  <footer>Atdev Dev · DistroBoxer · Open source</footer>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="../icons/distroboxer.svg" alt="DistroBoxer" width="44" height="44">
+        <div><strong>DistroBoxer</strong><span>ATDEV DEV</span></div>
+      </div>
+      <p class="nav-caption">WORKSPACE</p>
+      <nav class="navigation" aria-label="Navegación principal">
+        <button class="nav-item active" data-page="home"><span>⌂</span> Inicio</button>
+        <button class="nav-item" data-page="distros"><span>▦</span> Distribuciones</button>
+        <button class="nav-item" data-page="terminal"><span>›_</span> Terminal</button>
+        <button class="nav-item" data-page="settings"><span>⚙</span> Ajustes</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="engine-indicator"><i></i><span id="engine-mini">Conectando motor…</span></div>
+        <span class="version">DistroBoxer 0.3.0 · BETA</span>
+      </div>
+    </aside>
+    <main class="main-area">
+      <header class="topbar">
+        <div><span class="eyebrow">LINUX ENVIRONMENT MANAGER</span><h1 id="page-title">Tu espacio Linux</h1></div>
+        <div class="top-actions"><span class="free-pill">✦ GRATIS Y OPEN SOURCE</span><div class="avatar">DB</div></div>
+      </header>
+      <section id="page-home" class="page active">
+        <div class="hero-panel">
+          <div class="hero-copy">
+            <span class="eyebrow">UN MOTOR · MUCHAS DISTRIBUCIONES</span>
+            <h2>Linux, a tu manera.<br><em>Sin límites artificiales.</em></h2>
+            <p>Prepara, organiza y administra tus entornos Linux desde una interfaz unificada creada por Atdev Dev.</p>
+            <button class="primary-button" data-go="distros">Explorar distribuciones <b>→</b></button>
+          </div>
+          <div class="hero-orbit" aria-hidden="true"><div class="orbit-ring"></div><div class="penguin-mark">DB</div><span class="orbit-label">YOUR LINUX HUB</span></div>
+        </div>
+        <div class="stats-grid">
+          <article class="stat-card"><span>PERFILES</span><strong id="stat-distros">—</strong><small>Distribuciones en catálogo</small></article>
+          <article class="stat-card"><span>MOTOR</span><strong id="stat-engine">—</strong><small>Conexión con Rust</small></article>
+          <article class="stat-card"><span>PLATAFORMA</span><strong>DESKTOP</strong><small>Windows · Linux · macOS</small></article>
+        </div>
+        <div class="section-title"><div><span class="eyebrow">QUICK ACCESS</span><h2>Centro de trabajo</h2></div></div>
+        <div class="quick-grid">
+          <button class="quick-card" data-go="distros"><span class="quick-icon">▦</span><strong>Distribuciones</strong><small>Explora los perfiles Linux disponibles.</small><b>Ver catálogo →</b></button>
+          <button class="quick-card" data-go="terminal"><span class="quick-icon terminal-icon">›_</span><strong>Terminal</strong><small>El espacio para tus futuras sesiones de shell.</small><b>Abrir terminal →</b></button>
+        </div>
+      </section>
+      <section id="page-distros" class="page">
+        <div class="page-intro"><div><span class="eyebrow">LINUX CATALOG</span><h2>Tus distribuciones</h2><p>Perfiles detectados por el motor compartido de DistroBoxer.</p></div><span class="count-pill" id="distro-count">Cargando…</span></div>
+        <label class="search-box"><span>⌕</span><input id="distro-search" type="search" placeholder="Buscar Debian, Alpine, APT…" autocomplete="off"></label>
+        <div id="catalog" class="catalog" aria-live="polite"><div class="empty-state">Conectando con el motor Rust…</div></div>
+      </section>
+      <section id="page-terminal" class="page">
+        <div class="page-intro"><div><span class="eyebrow">SHELL WORKSPACE</span><h2>Terminal</h2><p>Tu centro de comandos y sesiones Linux.</p></div><span class="count-pill pending">RUNTIME PENDIENTE</span></div>
+        <div class="terminal-window">
+          <div class="terminal-bar"><div class="window-dots"><i></i><i></i><i></i></div><span>DISTROBOXER — TERMINAL</span><span class="terminal-lock">● SIN SESIÓN</span></div>
+          <div class="terminal-content"><p class="term-green">Atdev Dev · DistroBoxer Shell</p><p>Bienvenido al futuro espacio de terminal.</p><p class="term-muted">Todavía no hay una distribución iniciada.</p><br><p class="term-green">$ distroboxer runtime status</p><p class="term-warning">PRoot: pendiente · Shell interactiva: pendiente · X11: pendiente</p><div class="terminal-cursor"><span>›</span> Esperando integración del runtime<span class="cursor"></span></div></div>
+        </div>
+        <div class="notice-card"><strong>¿Qué falta para ejecutar comandos?</strong><p>Integrar PRoot, preparar el entorno de shell y gestionar sesiones persistentes. Esta pantalla es la interfaz de destino; todavía no ejecuta comandos ficticios.</p></div>
+      </section>
+      <section id="page-settings" class="page">
+        <div class="page-intro"><div><span class="eyebrow">PREFERENCES</span><h2>Ajustes</h2><p>Información de esta compilación de DistroBoxer.</p></div></div>
+        <div class="settings-list">
+          <article><span>Motor compartido</span><strong id="settings-engine">Comprobando…</strong></article>
+          <article><span>Modelo de distribución</span><strong>Rootfs en espacio aislado</strong></article>
+          <article><span>Licencia</span><strong>MIT · Open source</strong></article>
+          <article><span>Monetización</span><strong>Sin anuncios ni compras integradas</strong></article>
+          <article><span>Versión</span><strong>0.3.0 · Desarrollo temprano</strong></article>
+        </div>
+      </section>
+      <footer><span>DistroBoxer © Atdev Dev</span><span>Open source · Sin compras dentro de la app</span></footer>
+    </main>
+  </div>
   <script src="./main.js"></script>
 </body>
 </html>
