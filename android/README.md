@@ -1,13 +1,23 @@
 # Android application
 
-DistroBoxer Android is a native Kotlin + Jetpack Compose application backed by the Rust engine through JNI.
+DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust engine through JNI.
 
 ## Current state
 
-- Displays the distribution catalog returned by Rust.
-- Detects and displays the device ABI.
-- Packages native Rust libraries for `arm64-v8a` and `x86_64`.
-- Install actions remain disabled until the rootfs installer and PRoot runtime are implemented.
+- Displays eight distribution profiles from the Rust engine.
+- Detects device ABI and prepares app-private distribution directories.
+- Includes an adaptive launcher icon.
+- Includes a WorkManager archive downloader with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground progress notification.
+- Download scheduling is exposed through `DistroDownloadScheduler`; a verified source URL and published checksum are required.
+- The worker downloads only. Rootfs extraction, distribution installation, PRoot, and interactive terminal sessions are not implemented yet.
+
+## Android permissions
+
+- `INTERNET`: download trusted rootfs archives.
+- `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`: show visible progress for a user-initiated archive transfer.
+- `POST_NOTIFICATIONS`: allow Android 13+ to show download notifications.
+
+The app does not request all-files access or broad shared-storage permissions. Distribution files stay in app-private storage. Android may still apply background execution limits; WorkManager handles deferrable archive transfers. A future Linux terminal session will require a separate, persistent user-visible session service.
 
 ## Build
 
@@ -26,12 +36,8 @@ cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is generated at:
+The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI uploads it as a workflow artifact.
 
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
+## Release channels
 
-The GitHub Actions Android workflow builds the native libraries, assembles the APK, and uploads it as the `DistroBoxer-debug-apk` artifact.
-
-The preview currently does not request shared-storage permissions. Distribution files will be kept in app-private storage.
+Tagged versions trigger the GitHub prerelease workflow. Current APKs are testing builds, not production-signed releases. F-Droid publication is pending a reproducible offline build and official metadata review.
