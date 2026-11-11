@@ -15,6 +15,11 @@ mod linux;
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 pub use linux::{find_proot_executable, LinuxProotBackend};
 
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::{find_wsl_executable, WindowsWsl2Backend};
+
 /// Runtime backend selected for the current host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeKind {
@@ -148,10 +153,20 @@ pub fn current_runtime_status() -> RuntimeStatus {
                 )
             }
         },
-        RuntimeKind::WindowsWsl2 => (
-            RuntimeState::Planned,
-            "Windows backend uses WSL2; host integration is not implemented yet",
-        ),
+        RuntimeKind::WindowsWsl2 => {
+            #[cfg(target_os = "windows")]
+            {
+                if WindowsWsl2Backend::discover().is_ok_and(|backend| backend.is_available()) {
+                    (RuntimeState::AvailableForDetection, "WSL responds; DistroBoxer WSL distributions must be imported before launch")
+                } else {
+                    (RuntimeState::DependencyMissing, "WSL2 is not ready; enable and initialize Windows Subsystem for Linux")
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                (RuntimeState::Planned, "Windows WSL2 backend is not available for this target")
+            }
+        },
         RuntimeKind::MacOsVirtualMachine => (
             RuntimeState::Planned,
             "macOS backend uses a Linux VM through Virtualization.framework; host integration is not implemented yet",
