@@ -103,11 +103,7 @@ impl StorageManager {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let temporary = distro_dir.join(format!(
-            ".metadata.{}.{}.tmp",
-            std::process::id(),
-            nonce
-        ));
+        let temporary = distro_dir.join(format!(".metadata.{}.{}.tmp", std::process::id(), nonce));
         let contents = serde_json::to_vec_pretty(metadata)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
 
