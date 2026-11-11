@@ -23,6 +23,8 @@ pub struct Distro {
     pub name: &'static str,
     /// Native package manager command.
     pub package_manager: &'static str,
+    /// Supported Linux userspace architectures.
+    pub architectures: &'static [&'static str],
 }
 
 /// Initial supported distribution catalog.
@@ -31,16 +33,19 @@ pub const DISTROS: &[Distro] = &[
         id: "debian",
         name: "Debian",
         package_manager: "apt",
+        architectures: &["aarch64", "x86_64"],
     },
     Distro {
         id: "alpine",
         name: "Alpine Linux",
         package_manager: "apk",
+        architectures: &["aarch64", "x86_64"],
     },
     Distro {
         id: "ubuntu",
         name: "Ubuntu",
         package_manager: "apt",
+        architectures: &["aarch64", "x86_64"],
     },
 ];
 
@@ -52,6 +57,18 @@ pub fn supported_distros() -> &'static [Distro] {
 /// Finds a distribution by its stable identifier.
 pub fn find_distro(id: &str) -> Option<&'static Distro> {
     DISTROS.iter().find(|distro| distro.id == id)
+}
+
+/// Returns the supported architectures for a distribution.
+pub fn supported_architectures(id: &str) -> Option<&'static [&'static str]> {
+    find_distro(id).map(|distro| distro.architectures)
+}
+
+/// Checks whether a distribution supports a Linux architecture name.
+pub fn supports_architecture(id: &str, architecture: &str) -> bool {
+    supported_architectures(id)
+        .map(|architectures| architectures.contains(&architecture))
+        .unwrap_or(false)
 }
 
 /// Returns whether an identifier exists in the supported catalog.
@@ -94,6 +111,9 @@ mod tests {
         assert!(is_supported("debian"));
         assert!(is_supported("alpine"));
         assert!(is_supported("ubuntu"));
+        assert!(supports_architecture("debian", "aarch64"));
+        assert!(supports_architecture("alpine", "x86_64"));
+        assert!(!supports_architecture("ubuntu", "armv7l"));
     }
 
     #[test]
