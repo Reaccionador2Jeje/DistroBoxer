@@ -10,6 +10,11 @@
 
 use std::fmt;
 
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
+mod linux;
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
+pub use linux::{find_proot_executable, LinuxProotBackend};
+
 /// Runtime backend selected for the current host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeKind {
@@ -120,10 +125,29 @@ pub fn current_runtime_status() -> RuntimeStatus {
             RuntimeState::AvailableForDetection,
             "Android PRoot backend selected; bundled binary and app sandbox must be validated",
         ),
-        RuntimeKind::LinuxProot => (
-            RuntimeState::AvailableForDetection,
-            "Linux PRoot backend selected; the host proot executable must be detected",
-        ),
+        RuntimeKind::LinuxProot => {
+            #[cfg(all(target_os = "linux", not(target_os = "android")))]
+            {
+                if find_proot_executable().is_ok() {
+                    (
+                        RuntimeState::AvailableForDetection,
+                        "Linux PRoot executable detected; installed distributions can be checked at launch",
+                    )
+                } else {
+                    (
+                        RuntimeState::DependencyMissing,
+                        "PRoot is missing; install the proot package on the Linux host",
+                    )
+                }
+            }
+            #[cfg(not(all(target_os = "linux", not(target_os = "android"))))]
+            {
+                (
+                    RuntimeState::Planned,
+                    "Linux PRoot backend is not available for this target",
+                )
+            }
+        },
         RuntimeKind::WindowsWsl2 => (
             RuntimeState::Planned,
             "Windows backend uses WSL2; host integration is not implemented yet",
