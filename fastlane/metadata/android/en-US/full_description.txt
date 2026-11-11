@@ -11,4 +11,4 @@ Planned capabilities:
 
 DistroBoxer does not require Android root access. A userspace runtime such as PRoot does not provide a separate Linux kernel.
 
-This is an early development build. Distribution installation and terminal execution are still under development; the current catalog is not a claim that every listed distribution is installable yet.
+This is an early development build. An Alpine Linux 3.24.4 rootfs installation preview is available on ARM64 and x86_64. Other distributions are currently catalog profiles only. Interactive Linux terminal execution is still under development.
