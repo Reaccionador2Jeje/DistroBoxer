@@ -2,6 +2,7 @@
   "id": "debian",
   "name": "Debian",
   "package_manager": "apt",
+  "architectures": ["aarch64", "x86_64"],
   "status": "planned",
   "rootfs_source": null,
   "checksum": null
