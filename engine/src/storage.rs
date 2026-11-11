@@ -494,6 +494,7 @@ mod tests {
         let distro_dir = manager.prepare_distro("alpine").unwrap();
         let rootfs = distro_dir.join("rootfs");
         fs::create_dir_all(rootfs.join("usr/lib")).unwrap();
+        fs::create_dir_all(rootfs.join("etc")).unwrap();
         fs::write(rootfs.join("usr/lib/os-release"), "ID=alpine\n").unwrap();
         symlink("../usr/lib/os-release", rootfs.join("etc/os-release")).unwrap();
 
