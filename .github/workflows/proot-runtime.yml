@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proot/src/proot
-          key: proot-${{ env.PROOT_CACHE_VERSION }}-${{ matrix.abi }}-${{ env.PROOT_COMMIT }}-${{ env.NDK_VERSION }}-${{ env.TALLOC_VERSION }}
+          key: proot-${{ env.PROOT_CACHE_VERSION }}-${{ matrix.abi }}-${{ env.PROOT_COMMIT }}-${{ env.NDK_VERSION }}-${{ env.TALLOC_VERSION }}-${{ env.TALLOC_SHA256 }}
 
       - name: Download Android NDK
         if: steps.proot-cache.outputs.cache-hit != 'true'
@@ -158,9 +158,9 @@ jobs:
       - name: Verify Android ELF and dependencies
         run: |
           set -euo pipefail
-          "$READELF" -h proot/src/proot | tee elf-header.txt
+          readelf -h proot/src/proot | tee elf-header.txt
           grep -F "Machine:" elf-header.txt | grep -F "${{ matrix.machine }}"
-          "$READELF" -d proot/src/proot | tee dynamic-section.txt
+          readelf -d proot/src/proot | tee dynamic-section.txt
           if grep -E 'NEEDED.*(libtalloc|libpython|libc\\+\\+_shared)' dynamic-section.txt; then
             echo "Unexpected non-system runtime dependency found"
             exit 1
