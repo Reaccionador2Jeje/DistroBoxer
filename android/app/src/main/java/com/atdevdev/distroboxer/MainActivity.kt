@@ -57,8 +57,11 @@ import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 
 private data class DistroUi(
     val id: String,
@@ -174,6 +177,7 @@ private fun DistroBoxerScreen() {
     val coroutineScope = rememberCoroutineScope()
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
+    var selectedDistroId by remember { mutableStateOf("alpine") }
     var search by remember { mutableStateOf("") }
     var projectFileName by remember { mutableStateOf("main.py") }
     var projectSource by remember {
@@ -196,6 +200,52 @@ for numero in range(1, 6):
             currentTerminalSession?.close()
             prootRuntime.stop()
             x11Backend.stop()
+        }
+    }
+
+    suspend fun refreshDistroStates() {
+        val latest = withContext(Dispatchers.IO) {
+            catalog.distros.associate { distro ->
+                val installed = prootRuntime.isDistroInstalled(distro.id)
+                val workInfos = runCatching {
+                    WorkManager.getInstance(context)
+                        .getWorkInfosForUniqueWork("distroboxer-install-${distro.id}")
+                        .get()
+                }.getOrDefault(emptyList())
+                val active = workInfos.any {
+                    it.state == WorkInfo.State.ENQUEUED ||
+                        it.state == WorkInfo.State.RUNNING ||
+                        it.state == WorkInfo.State.BLOCKED
+                }
+                val failed = workInfos.lastOrNull { it.state == WorkInfo.State.FAILED }
+                val status = when {
+                    installed -> "Instalada · lista para abrir"
+                    active -> "Descargando o instalando en segundo plano…"
+                    failed != null -> failed.outputData.getString(DistroArchiveDownloadWorker.KEY_ERROR)
+                        ?.let { "Error de instalación: $it" }
+                        ?: "La instalación falló. Puedes volver a intentarlo."
+                    else -> null
+                }
+                distro.id to status
+            }
+        }
+        latest.forEach { (id, status) ->
+            if (status != null) storageStates[id] = status
+            else if (storageStates[id]?.contains("Instalada", ignoreCase = true) == true) {
+                storageStates.remove(id)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshDistroStates()
+    }
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == AppTab.DISTROS || selectedTab == AppTab.TERMINAL) {
+            while (true) {
+                refreshDistroStates()
+                delay(1800)
+            }
         }
     }
 
@@ -227,7 +277,10 @@ for numero in range(1, 6):
     fun startLinuxShell() {
         coroutineScope.launch {
             try {
-                openLinuxShell()
+                check(prootRuntime.isDistroInstalled(selectedDistroId)) {
+                    "Instala primero ${selectedDistroId} desde la pestaña Distros."
+                }
+                openLinuxShell(selectedDistroId)
             } catch (error: Exception) {
                 terminalStatus = "No se pudo iniciar"
                 terminalOutput += "\n[error] ${error.message ?: "No se pudo iniciar PRoot"}\n"
@@ -288,6 +341,7 @@ for numero in range(1, 6):
                     "El ejemplo actual se ejecuta con Python; usa un archivo .py"
                 }
                 workspace.save(projectFileName, projectSource)
+                check(prootRuntime.isDistroInstalled("alpine")) { "Instala Alpine desde Distros antes de ejecutar Python." }
                 val session = openLinuxShell("alpine")
                 withContext(Dispatchers.IO) {
                     prootRuntime.writeProjectFile("alpine", projectFileName, projectSource)
@@ -394,6 +448,11 @@ for numero in range(1, 6):
                                 distro = distro,
                                 engineConnected = catalog.engineConnected,
                                 storageStatus = storageStates[distro.id],
+                                installed = storageStates[distro.id]?.contains("Instalada", ignoreCase = true) == true,
+                                onOpenTerminal = {
+                                    selectedDistroId = distro.id
+                                    selectedTab = AppTab.TERMINAL
+                                },
                                 onPrepare = {
                                     val prepared = runCatching {
                                         NativeBridge.nativePrepareDistro(distro.id, context.filesDir.absolutePath)
@@ -438,6 +497,12 @@ for numero in range(1, 6):
                 AppTab.TERMINAL -> TerminalPage(
                     prootAvailable = prootAvailable,
                     prootInstallStatus = prootInstallStatus,
+                    installedDistros = catalog.distros.filter {
+                        storageStates[it.id]?.contains("Instalada", ignoreCase = true) == true
+                    },
+                    selectedDistroId = selectedDistroId,
+                    onDistroSelected = { selectedDistroId = it },
+                    onOpenDistros = { selectedTab = AppTab.DISTROS },
                     terminalOutput = terminalOutput,
                     terminalCommand = terminalCommand,
                     terminalStatus = terminalStatus,
@@ -586,6 +651,8 @@ private fun DistroCard(
     distro: DistroUi,
     engineConnected: Boolean,
     storageStatus: String?,
+    installed: Boolean,
+    onOpenTerminal: () -> Unit,
     onPrepare: () -> Unit,
     onInstall: () -> Unit,
 ) {
@@ -609,14 +676,20 @@ private fun DistroCard(
             Text("${distro.bootstrap} · ${distro.archiveFormat}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onPrepare, enabled = engineConnected) { Text("Preparar") }
-                if (distro.id == "alpine") {
+                Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar") }
+                if (distro.id == "alpine" && !installed) {
                     Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
+                }
+                if (installed) {
+                    Button(onClick = onOpenTerminal) { Text("Abrir terminal") }
                 }
             }
             if (storageStatus != null) {
                 Spacer(Modifier.height(8.dp))
-                Text(storageStatus, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                Text(storageStatus, color = if (installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+            }
+            if (distro.id != "alpine" && !installed) {
+                Text("El instalador Android está disponible actualmente para Alpine.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -626,6 +699,10 @@ private fun DistroCard(
 private fun TerminalPage(
     prootAvailable: Boolean,
     prootInstallStatus: String,
+    installedDistros: List<DistroUi>,
+    selectedDistroId: String,
+    onDistroSelected: (String) -> Unit,
+    onOpenDistros: () -> Unit,
     terminalOutput: String,
     terminalCommand: String,
     terminalStatus: String,
@@ -634,18 +711,34 @@ private fun TerminalPage(
     onSendCommand: () -> Unit,
     onStopSession: () -> Unit,
 ) {
+    val selectedDistro = installedDistros.firstOrNull { it.id == selectedDistroId }
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("PRoot · Alpine Linux · shell interactiva", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Una terminal conectada a tus distribuciones instaladas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         SectionCard(
             title = "Runtime PRoot",
             value = if (prootAvailable) "Instalado y verificado" else "No disponible",
             detail = prootInstallStatus,
             good = prootAvailable,
         )
+        Text("Distribución", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (installedDistros.isEmpty()) {
+            Text("Todavía no hay distribuciones instaladas. Instala Alpine desde Distros para abrir tu primera shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onOpenDistros, modifier = Modifier.fillMaxWidth()) { Text("Ir a Distros") }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                installedDistros.forEach { distro ->
+                    FilterChip(
+                        selected = selectedDistroId == distro.id,
+                        onClick = { onDistroSelected(distro.id) },
+                        label = { Text(distro.name) },
+                    )
+                }
+            }
+        }
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
@@ -667,21 +760,25 @@ private fun TerminalPage(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("Comando Linux") },
-            placeholder = { Text("apk add python3") },
+            placeholder = { Text(if (selectedDistro?.id == "alpine") "apk add python3" else "ls -la") },
             shape = RoundedCornerShape(14.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Button(onClick = onStartSession, enabled = prootAvailable) { Text("Iniciar Alpine") }
+            Button(
+                onClick = onStartSession,
+                enabled = prootAvailable && selectedDistro != null && !terminalStatus.startsWith("Conectado"),
+            ) { Text(if (selectedDistro == null) "Sin distro" else "Iniciar ${selectedDistro.name}") }
             Button(onClick = onSendCommand, enabled = terminalStatus.startsWith("Conectado")) { Text("Ejecutar") }
             Button(onClick = onStopSession, enabled = terminalStatus.startsWith("Conectado")) { Text("Detener") }
         }
         Text(
-            "Ejemplo: apk add python3 instala Python en Alpine. La distribución debe estar instalada antes de iniciar la shell.",
+            "Los comandos se ejecutan dentro de la distribución seleccionada. La sesión permanece activa mientras la app está abierta.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
+
 
 @Composable
 private fun ProgrammingPage(
