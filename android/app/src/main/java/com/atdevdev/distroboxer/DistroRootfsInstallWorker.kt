@@ -40,12 +40,13 @@ class DistroRootfsInstallWorker(
                     expectedHash,
                 )
             }
-            if (installError.isNullOrEmpty()) {
+            if (installError == "") {
                 Result.success(workDataOf("installed_distro_id" to distroId))
             } else {
                 Result.failure(
                     workDataOf(
-                        DistroArchiveDownloadWorker.KEY_ERROR to "Root filesystem installation failed: $installError",
+                        DistroArchiveDownloadWorker.KEY_ERROR to
+                            (installError ?: "Native installer returned no result"),
                     ),
                 )
             }
