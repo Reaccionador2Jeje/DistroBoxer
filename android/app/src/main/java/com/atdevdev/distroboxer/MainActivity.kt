@@ -274,6 +274,18 @@ for numero in range(1, 6):
         return session
     }
 
+    fun selectDistroForTerminal(distroId: String) {
+        if (selectedDistroId != distroId && terminalSession?.isAlive() == true) {
+            terminalSession?.close()
+            terminalSession = null
+            terminalDisplay = null
+            prootRuntime.stop()
+            terminalStatus = "Sesión detenida al cambiar de distribución"
+            terminalOutput += "\n[ DistroBoxer: distribución cambiada ]\n"
+        }
+        selectedDistroId = distroId
+    }
+
     fun startLinuxShell() {
         coroutineScope.launch {
             try {
@@ -450,7 +462,7 @@ for numero in range(1, 6):
                                 storageStatus = storageStates[distro.id],
                                 installed = storageStates[distro.id]?.contains("Instalada", ignoreCase = true) == true,
                                 onOpenTerminal = {
-                                    selectedDistroId = distro.id
+                                    selectDistroForTerminal(distro.id)
                                     selectedTab = AppTab.TERMINAL
                                 },
                                 onPrepare = {
@@ -501,7 +513,7 @@ for numero in range(1, 6):
                         storageStates[it.id]?.contains("Instalada", ignoreCase = true) == true
                     },
                     selectedDistroId = selectedDistroId,
-                    onDistroSelected = { selectedDistroId = it },
+                    onDistroSelected = { selectDistroForTerminal(it) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
                     terminalOutput = terminalOutput,
                     terminalCommand = terminalCommand,
