@@ -18,8 +18,7 @@ pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Distro {
     /// Stable identifier used in configuration and storage paths.
     pub id: &'static str,
