@@ -30,7 +30,7 @@
 ## 0.4.0 — Android runtime
 - [ ] Evaluate and package a compatible PRoot build
 - [x] Detect Android device ABI in the preview UI
-- [ ] Map Android ABIs to Linux userspace architectures in the Rust bridge
+- [x] Map Android ABIs to Linux userspace architectures in Rust
 - [ ] Configure isolated runtime environment
 - [ ] Start and stop a distribution process safely
 
