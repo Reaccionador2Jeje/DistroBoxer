@@ -3,6 +3,7 @@
   "name": "Ubuntu",
   "package_manager": "apt",
   "architectures": ["aarch64", "x86_64"],
+  "archive_format": "oci",
   "status": "planned",
   "rootfs_source": null,
   "checksum": null
