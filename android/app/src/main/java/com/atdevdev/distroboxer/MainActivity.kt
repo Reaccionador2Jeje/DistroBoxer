@@ -211,7 +211,7 @@ for numero in range(1, 6):
                     WorkManager.getInstance(context)
                         .getWorkInfosForUniqueWork("distroboxer-install-${distro.id}")
                         .get()
-                }.getOrDefault(emptyList())
+                }.getOrDefault(mutableListOf())
                 val active = workInfos.any {
                     it.state == WorkInfo.State.ENQUEUED ||
                         it.state == WorkInfo.State.RUNNING ||
