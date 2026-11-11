@@ -117,11 +117,12 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
         &expected_sha256,
         |line| {
             if let Ok(message) = env.new_string(line) {
+                let message_object: JObject = message.into();
                 let _ = env.call_method(
                     &listener,
                     "onInstallLog",
                     "(Ljava/lang/String;)V",
-                    &[jni::objects::JValue::Object(&message)],
+                    &[jni::objects::JValue::Object(&message_object)],
                 );
             }
         },
