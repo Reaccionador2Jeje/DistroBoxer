@@ -239,14 +239,12 @@ for numero in range(1, 6):
         }
     }
 
-    LaunchedEffect(Unit) {
-        refreshDistroStates()
-    }
     LaunchedEffect(selectedTab) {
+        refreshDistroStates()
         if (selectedTab == AppTab.DISTROS || selectedTab == AppTab.TERMINAL) {
             while (true) {
+                delay(2500)
                 refreshDistroStates()
-                delay(1800)
             }
         }
     }
