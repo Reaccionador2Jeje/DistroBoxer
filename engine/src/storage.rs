@@ -193,6 +193,17 @@ impl StorageManager {
         archive_path: impl AsRef<Path>,
         expected_sha256: &str,
     ) -> io::Result<()> {
+        self.install_tar_gz_with_progress(id, archive_path, expected_sha256, |_| {})
+    }
+
+    /// Installs a rootfs while forwarding extraction log lines to the caller.
+    pub fn install_tar_gz_with_progress(
+        &self,
+        id: &str,
+        archive_path: impl AsRef<Path>,
+        expected_sha256: &str,
+        mut progress: impl FnMut(String),
+    ) -> io::Result<()> {
         let distro = find_distro(id).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
@@ -212,6 +223,7 @@ impl StorageManager {
                 "archive must be inside the distribution's private downloads directory",
             ));
         }
+        progress("Verificando SHA-256 del rootfs…".to_owned());
         if !verify_sha256(&archive_path, expected_sha256)? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -219,6 +231,7 @@ impl StorageManager {
             ));
         }
 
+        progress("Preparando directorio temporal…".to_owned());
         self.set_status(id, InstallStatus::NotInstalled, None)?;
         self.transition_status(id, InstallStatus::Preparing, None)?;
         self.transition_status(id, InstallStatus::Downloading, None)?;
@@ -237,7 +250,13 @@ impl StorageManager {
             }
 
             fs::create_dir(&staging)?;
-            extract_tar_gz(&archive_path, &staging)?;
+            progress("Iniciando extracción del sistema Linux…".to_owned());
+            crate::installer::extract_tar_gz_with_progress(
+                &archive_path,
+                &staging,
+                |line| progress(line),
+            )?;
+            progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
             let rootfs = distro_dir.join("rootfs");
@@ -254,6 +273,7 @@ impl StorageManager {
             }
 
             remove_real_directory_if_present(&backup)?;
+            progress("Instalación finalizada correctamente.".to_owned());
             Ok(())
         })();
 
