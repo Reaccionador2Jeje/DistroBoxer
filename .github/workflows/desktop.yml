@@ -47,3 +47,10 @@ jobs:
         run: cargo check --manifest-path desktop/Cargo.toml
       - name: Build desktop executable
         run: cargo build --release --manifest-path desktop/Cargo.toml
+      - name: Upload desktop executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: DistroBoxer-desktop-${{ runner.os }}
+          path: desktop/target/release/distroboxer-desktop*
+          if-no-files-found: error
+          retention-days: 14
