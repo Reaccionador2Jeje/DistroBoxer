@@ -15,14 +15,14 @@ Current scope:
 - JSON metadata and installation lifecycle states.
 - SHA-256 verification primitive for downloaded artifacts.
 - Root filesystem validation using the standard `etc/os-release` marker.
-- Distribution architecture compatibility checks.\n- Initial Android Compose preview with device ABI detection.\n- Architecture and roadmap documentation.
+- Distribution architecture compatibility checks.\n- Native Android Compose application with device ABI detection.\n- JNI bridge loading the distribution catalog directly from Rust.\n- Architecture and roadmap documentation.
 - CI checks for formatting, compilation, and tests.
 
 Not implemented yet:
 - Downloading or extracting root filesystems (design documented, implementation pending).
 - Bundling or launching PRoot.
 - Package-manager execution.
-- JNI integration between Kotlin and Rust.\n- Android distribution installation and terminal UI.
+- Downloading and extracting Linux root filesystems.\n- Bundling or launching PRoot.\n- Package-manager execution and interactive terminal.\n- Android distribution installation and terminal UI.
 
 ## Repository layout
 
@@ -47,7 +47,7 @@ cargo test --workspace
 
 ## Android direction
 
-The Android app currently contains a Compose preview. It detects the device ABI and displays the distribution catalog; installation actions remain disabled until the Rust bridge and Linux runtime are ready. The Rust core will remain independent of Android UI code. Runtime binaries and root filesystems will be handled as separate, verifiable components.
+The Android app calls the Rust engine through JNI to load the distribution catalog and detects the device ABI. Installation actions remain disabled until the rootfs installer and Linux runtime are ready. The Rust core will remain independent of Android UI code. Runtime binaries and root filesystems will be handled as separate, verifiable components.
 
 ## Build the Android preview\n\nRequirements: JDK 17, Android SDK platform 35, and Gradle 8.9.\n\n```sh\ngradle :android:app:assembleDebug\n```\n\n## Security principles
 
