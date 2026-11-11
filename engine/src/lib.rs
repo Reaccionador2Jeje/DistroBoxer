@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 mod android_jni;
 
 pub mod integrity;
+pub mod installer;
 pub mod metadata;
 pub mod storage;
 
