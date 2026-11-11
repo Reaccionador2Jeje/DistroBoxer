@@ -27,10 +27,7 @@ pub fn extract_tar_gz(
 }
 
 /// Extracts an uncompressed tar stream after validating every path and link.
-pub fn extract_tar<R: Read>(
-    reader: R,
-    destination: impl AsRef<Path>,
-) -> io::Result<()> {
+pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(destination.as_ref())?;
     let destination = fs::canonicalize(destination)?;
 
@@ -148,7 +145,9 @@ mod tests {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, path, &contents[..]).unwrap();
+        builder
+            .append_data(&mut header, path, &contents[..])
+            .unwrap();
         builder.into_inner().unwrap()
     }
 
@@ -166,8 +165,14 @@ mod tests {
     #[test]
     fn rejects_parent_directory_entries() {
         let destination = temp_dir();
-        let outside = destination.parent().unwrap().join("distroboxer-escape-test");
-        let result = extract_tar(Cursor::new(tar_with_file("../distroboxer-escape-test")), &destination);
+        let outside = destination
+            .parent()
+            .unwrap()
+            .join("distroboxer-escape-test");
+        let result = extract_tar(
+            Cursor::new(tar_with_file("../distroboxer-escape-test")),
+            &destination,
+        );
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
         assert!(!outside.exists());
         if destination.exists() {
@@ -178,7 +183,9 @@ mod tests {
     #[test]
     fn rejects_absolute_paths() {
         assert_eq!(
-            validate_archive_path(Path::new("/etc/passwd")).unwrap_err().kind(),
+            validate_archive_path(Path::new("/etc/passwd"))
+                .unwrap_err()
+                .kind(),
             io::ErrorKind::InvalidData
         );
     }
