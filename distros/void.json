@@ -5,6 +5,7 @@
   "architectures": ["aarch64", "x86_64"],
   "bootstrap": "official rootfs tarball",
   "homepage": "https://voidlinux.org/",
+  "archive_format": "tar.xz",
   "status": "planned",
   "rootfs_source": null,
   "checksum": null
