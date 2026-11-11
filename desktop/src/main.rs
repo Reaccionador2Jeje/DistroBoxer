@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 #[derive(Serialize)]
 struct DistroEntry {
@@ -148,7 +148,7 @@ fn start_terminal(app: tauri::AppHandle, distro_id: String, cols: u16, rows: u16
                 if let Some(status) = result {
                     let _ = monitor_app.emit("terminal-exit", TerminalExit {
                         session_id,
-                        code: status.exit_code(),
+                        code: Some(status.exit_code()),
                     });
                     if let Ok(mut active) = sessions().lock() {
                         active.remove(&session_id);
