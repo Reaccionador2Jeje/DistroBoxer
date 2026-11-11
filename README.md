@@ -1,37 +1,39 @@
 # DistroBoxer
 
-**DistroBoxer** is an open-source project to manage Linux distribution environments on Android first, with a path toward Windows and Linux desktop support.
+**DistroBoxer** is an open-source Linux distribution manager, starting with Android and designed to expand to Windows and Linux desktop.
 
-The project uses a Rust core and a native Android application. On Android, the initial runtime direction is an unprivileged userspace environment using PRoot; this is not a full hardware virtual machine and does not require rooting the device.
+The project uses a Rust core and a native Kotlin + Jetpack Compose Android application. The planned Android runtime uses PRoot to run Linux userspace environments without root; this is not a full hardware virtual machine and does not provide a separate Linux kernel.
 
 ## Project status
 
 Early development — version 0.2.0 in progress.
 
-Current scope:
-- Rust engine with a small, validated distribution catalog.
-- Safe calculation of per-distribution storage paths.
-- Isolated per-distribution storage layout.
+Implemented:
+- Rust distribution catalog for Debian, Ubuntu, and Alpine.
+- Architecture compatibility metadata for `aarch64` and `x86_64`.
+- Validated distribution IDs and app-private storage paths.
+- Isolated per-distribution storage layout with symlink rejection.
 - JSON metadata and installation lifecycle states.
 - SHA-256 verification primitive for downloaded artifacts.
-- Root filesystem validation using the standard `etc/os-release` marker.
-- Distribution architecture compatibility checks.\n- Native Android Compose application with device ABI detection.\n- JNI bridge loading the distribution catalog directly from Rust.\n- Architecture and roadmap documentation.
-- CI checks for formatting, compilation, and tests.
+- Root filesystem presence validation using `etc/os-release`.
+- Android Compose application with device ABI detection.
+- JNI bridge loading the distribution catalog directly from Rust.
+- Rust and Android GitHub Actions workflows.
 
 Not implemented yet:
-- Downloading or extracting root filesystems (design documented, implementation pending).
+- Downloading and safely extracting Linux root filesystems.
 - Bundling or launching PRoot.
-- Package-manager execution.
-- Downloading and extracting Linux root filesystems.\n- Bundling or launching PRoot.\n- Package-manager execution and interactive terminal.\n- Android distribution installation and terminal UI.
+- Package-manager execution and interactive terminal.
+- Full Android distribution installation and lifecycle UI.
 
 ## Repository layout
 
 ```text
-android/       Native Android application preview
-engine/        Cross-platform Rust core
-runtime/       Runtime components and integration notes
+android/       Native Android application
+engine/        Cross-platform Rust core and JNI bridge
+runtime/       Runtime integration notes
 distros/       Distribution metadata
-docs/          Architecture and roadmap
+docs/          Architecture, roadmap, and installer design
 .github/       CI workflows
 ```
 
@@ -45,14 +47,34 @@ cargo check --workspace
 cargo test --workspace
 ```
 
-## Android direction
+## Build the Android application
 
-The Android app calls the Rust engine through JNI to load the distribution catalog and detects the device ABI. Installation actions remain disabled until the rootfs installer and Linux runtime are ready. The Rust core will remain independent of Android UI code. Runtime binaries and root filesystems will be handled as separate, verifiable components.
+Requirements:
+- JDK 17
+- Android SDK platform 35 and build-tools 35.0.0
+- Android NDK 27.2.12479018
+- Rust stable with `aarch64-linux-android` and `x86_64-linux-android` targets
+- `cargo-ndk`
+- Gradle 8.9
 
-## Build the Android preview\n\nRequirements: JDK 17, Android SDK platform 35, and Gradle 8.9.\n\n```sh\ngradle :android:app:assembleDebug\n```\n\n## Security principles
+From the repository root:
+
+```sh
+cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release -p distroboxer-engine
+gradle :android:app:assembleDebug
+```
+
+The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions also publishes it as the `DistroBoxer-debug-apk` workflow artifact.
+
+## Android runtime direction
+
+The Android app calls the Rust engine through JNI to load the distribution catalog and detects the device ABI. Install actions remain disabled until the rootfs installer and Linux runtime are ready. The Rust core remains independent of Android UI code.
+
+## Security principles
 
 - Never run downloaded scripts automatically.
-- Verify checksums and trusted metadata before extracting root filesystems.
+- Verify checksums from trusted metadata before extracting root filesystems.
+- Reject unsafe archive paths and links during extraction.
 - Keep each distribution inside its own app-private directory.
 - Validate distribution IDs before constructing filesystem paths.
 - Do not claim root, kernel, or full-VM capabilities where Android does not provide them.
