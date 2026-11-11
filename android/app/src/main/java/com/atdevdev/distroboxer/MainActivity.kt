@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -458,7 +460,10 @@ private fun TerminalPage() {
 
 @Composable
 private fun DesktopPage() {
-    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
         Text("Escritorios Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Entornos gráficos sobre X11", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(
@@ -528,7 +533,10 @@ private fun SettingsPage(
     notificationsAllowed: Boolean,
     onRequestNotifications: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
         Text("Ajustes", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         SectionCard("Motor nativo", if (engineConnected) "Conectado" else "No disponible", "Motor Rust y puente JNI.", engineConnected)
         SectionCard("Arquitectura", deviceAbi, "ABI principal detectada por Android.", true)
