@@ -68,7 +68,13 @@ class DistroArchiveDownloadWorker(
                 throw IllegalStateException("Cannot finalize downloaded archive")
             }
             setForeground(foregroundInfo("Descarga verificada", 100, false))
-            Result.success(workDataOf(KEY_ARCHIVE_PATH to target.absolutePath))
+            Result.success(
+                workDataOf(
+                    KEY_ARCHIVE_PATH to target.absolutePath,
+                    KEY_DISTRO_ID to distroId,
+                    KEY_SHA256 to expectedHash,
+                ),
+            )
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             temporary.delete()
             throw cancelled
