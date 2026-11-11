@@ -81,3 +81,40 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeIsInstal
         Ok(false) | Err(_) => JNI_FALSE,
     }
 }
+
+/// Verifies and atomically installs a gzip-compressed rootfs tarball.
+#[no_mangle]
+pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallTarGz(
+    mut env: JNIEnv,
+    _this: JObject,
+    distro_id: JString,
+    base_directory: JString,
+    archive_path: JString,
+    expected_sha256: JString,
+) -> jboolean {
+    let distro_id: String = match env.get_string(&distro_id) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+    let base_directory: String = match env.get_string(&base_directory) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+    let archive_path: String = match env.get_string(&archive_path) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+    let expected_sha256: String = match env.get_string(&expected_sha256) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+
+    match StorageManager::new(base_directory).install_tar_gz(
+        &distro_id,
+        archive_path,
+        &expected_sha256,
+    ) {
+        Ok(()) => JNI_TRUE,
+        Err(_) => JNI_FALSE,
+    }
+}
