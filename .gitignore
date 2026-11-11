@@ -1,4 +1,7 @@
 /target/
+/desktop/target/
+/desktop/icons/icon.png
+/desktop/icons/icon.ico
 /build/
 /.gradle/
 /.idea/
