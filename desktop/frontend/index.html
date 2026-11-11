@@ -62,12 +62,23 @@
         <div id="catalog" class="catalog" aria-live="polite"><div class="empty-state">Conectando con el motor Rust…</div></div>
       </section>
       <section id="page-terminal" class="page">
-        <div class="page-intro"><div><span class="eyebrow">SHELL WORKSPACE</span><h2>Terminal</h2><p>Tu centro de comandos y sesiones Linux.</p></div><span class="count-pill pending">RUNTIME PENDIENTE</span></div>
-        <div class="terminal-window">
-          <div class="terminal-bar"><div class="window-dots"><i></i><i></i><i></i></div><span>DISTROBOXER — TERMINAL</span><span class="terminal-lock">● SIN SESIÓN</span></div>
-          <div class="terminal-content"><p class="term-green">Atdev Dev · DistroBoxer Shell</p><p>Bienvenido al futuro espacio de terminal.</p><p class="term-muted">Todavía no hay una distribución iniciada.</p><br><p class="term-green">$ distroboxer runtime status</p><p class="term-warning">PRoot: pendiente · Shell interactiva: pendiente · X11: pendiente</p><div class="terminal-cursor"><span>›</span> Esperando integración del runtime<span class="cursor"></span></div></div>
+        <div class="page-intro"><div><span class="eyebrow">SHELL WORKSPACE</span><h2>Terminal Linux</h2><p>Sesiones PRoot reales dentro de tus distribuciones instaladas.</p></div><span class="count-pill pending" id="terminal-status">SIN SESIÓN</span></div>
+        <div class="terminal-toolbar">
+          <label>Distribución<select id="terminal-distro"><option value="">Cargando catálogo…</option></select></label>
+          <button class="primary-button" id="terminal-start">Iniciar shell</button>
+          <button class="terminal-secondary" id="terminal-stop" disabled>Detener sesión</button>
         </div>
-        <div class="notice-card"><strong>¿Qué falta para ejecutar comandos?</strong><p>Integrar PRoot, preparar el entorno de shell y gestionar sesiones persistentes. Esta pantalla es la interfaz de destino; todavía no ejecuta comandos ficticios.</p></div>
+        <div class="terminal-window">
+          <div class="terminal-bar"><div class="window-dots"><i></i><i></i><i></i></div><span>DISTROBOXER — PRoot / PTY</span><span class="terminal-lock" id="terminal-session-label">● SIN SESIÓN</span></div>
+          <pre class="terminal-content terminal-output" id="terminal-output" aria-live="polite">DistroBoxer · Terminal Linux
+Selecciona una distribución instalada y pulsa «Iniciar shell».
+La sesión permanecerá activa al navegar por otras secciones.</pre>
+          <form class="terminal-input-row" id="terminal-form">
+            <span>›</span><input id="terminal-input" type="text" autocomplete="off" spellcheck="false" placeholder="Escribe un comando…" disabled>
+            <button type="submit" disabled id="terminal-send">Enviar</button>
+          </form>
+        </div>
+        <p class="terminal-help">La terminal usa una pseudo-TTY real. Usa Ctrl+C para interrumpir el proceso en primer plano. Cerrar la aplicación termina las sesiones activas.</p>
       </section>
       <section id="page-desktop" class="page">
         <div class="page-intro"><div><span class="eyebrow">GRAPHICAL LINUX</span><h2>Escritorios Linux</h2><p>Entornos gráficos que planeamos ejecutar sobre X11.</p></div><span class="count-pill pending">INTEGRACIÓN PENDIENTE</span></div>
