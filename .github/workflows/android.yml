@@ -42,6 +42,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Restrict embedded X11 server to loopback
+        run: bash scripts/patch-x11-server.sh
 
       - name: Download PRoot ABI artifacts
         uses: actions/download-artifact@v4
