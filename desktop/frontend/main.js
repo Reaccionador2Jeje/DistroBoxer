@@ -74,6 +74,7 @@ async function loadCatalog() {
   try {
     distributions = await window.__TAURI__.core.invoke("list_distributions");
     renderCatalog();
+    populateTerminalDistros();
     document.querySelector("#stat-distros").textContent = String(distributions.length);
     document.querySelector("#stat-engine").textContent = "ONLINE";
     document.querySelector("#settings-engine").textContent = "Conectado · Rust";
