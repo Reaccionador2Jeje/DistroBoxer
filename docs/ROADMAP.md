@@ -15,6 +15,7 @@
 - [x] Installation lifecycle state model
 - [x] Metadata persistence with atomic file replacement
 - [x] Rootfs presence validation
+- [x] Initial aarch64 and x86_64 compatibility metadata
 - [ ] Storage usage reporting
 
 ## 0.3.0 — Root filesystem installation
@@ -28,7 +29,8 @@
 
 ## 0.4.0 — Android runtime
 - [ ] Evaluate and package a compatible PRoot build
-- [ ] Add Android ABI detection
+- [x] Detect Android device ABI in the preview UI
+- [ ] Map Android ABIs to Linux userspace architectures in the Rust bridge
 - [ ] Configure isolated runtime environment
 - [ ] Start and stop a distribution process safely
 
