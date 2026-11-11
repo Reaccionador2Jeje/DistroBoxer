@@ -22,9 +22,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import org.json.JSONArray
 
 private data class DistroUi(
     val id: String,
@@ -33,11 +35,39 @@ private data class DistroUi(
     val description: String,
 )
 
-private val initialDistros = listOf(
+private val fallbackDistros = listOf(
     DistroUi("debian", "Debian", "APT", "Estable y versátil"),
     DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar"),
     DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista"),
 )
+
+private data class DistroCatalog(
+    val distros: List<DistroUi>,
+    val engineConnected: Boolean,
+)
+
+private fun loadDistroCatalog(): DistroCatalog {
+    return try {
+        val json = JSONArray(NativeBridge.nativeSupportedDistros())
+        val distros = List(json.length()) { index ->
+            val item = json.getJSONObject(index)
+            val architectures = item.getJSONArray("architectures")
+            DistroUi(
+                id = item.getString("id"),
+                name = item.getString("name"),
+                packageManager = item.getString("package_manager").uppercase(),
+                description = "Arquitecturas: " +
+                    List(architectures.length()) { architectures.getString(it) }
+                        .joinToString(", "),
+            )
+        }
+        DistroCatalog(distros, engineConnected = true)
+    } catch (_: LinkageError) {
+        DistroCatalog(fallbackDistros, engineConnected = false)
+    } catch (_: Exception) {
+        DistroCatalog(fallbackDistros, engineConnected = false)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +83,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
+    val catalog = remember { loadDistroCatalog() }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -86,14 +117,20 @@ private fun DistroBoxerScreen() {
                 Column(Modifier.padding(16.dp)) {
                     Text("Motor Rust", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
-                    Text("Integración en desarrollo. Esta versión es una vista previa de la interfaz.")
+                    Text(
+                        if (catalog.engineConnected) {
+                            "Conectado: catálogo cargado desde Rust."
+                        } else {
+                            "Motor nativo no disponible; mostrando catálogo de demostración."
+                        },
+                    )
                 }
             }
 
             Text("Distribuciones", style = MaterialTheme.typography.titleLarge)
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(initialDistros, key = { it.id }) { distro ->
+                items(catalog.distros, key = { it.id }) { distro ->
                     DistroCard(distro)
                 }
             }
