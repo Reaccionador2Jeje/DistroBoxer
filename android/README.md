@@ -7,9 +7,10 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 - Displays eight distribution profiles from the Rust engine.
 - Detects device ABI and prepares app-private distribution directories.
 - Includes an adaptive launcher icon.
-- Includes a WorkManager archive downloader with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground progress notification.
-- Download scheduling is exposed through `DistroDownloadScheduler`; a verified source URL and published checksum are required.
-- The worker downloads only. Rootfs extraction, distribution installation, PRoot, and interactive terminal sessions are not implemented yet.
+- Includes a WorkManager download-to-install chain with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground notifications.
+- Rust safely extracts gzip-compressed tar archives into a staging directory and promotes a validated rootfs atomically.
+- `DistroDownloadScheduler` requires a verified source URL and published checksum; no source manifests are pinned in the app yet.
+- OCI layer support, other archive compression formats, PRoot, and interactive terminal sessions are not implemented yet.
 
 ## Android permissions
 
