@@ -97,7 +97,7 @@ class ProotRuntime(context: Context) {
             "TMPDIR=/tmp",
         )
         if (!display.isNullOrBlank()) {
-            require(display.matches(Regex(":[0-9]{1,2}(\.[0-9]{1,2})?"))) {
+            require(display.matches(Regex(":[0-9]{1,2}(\\.[0-9]{1,2})?"))) {
                 "DISPLAY no válido"
             }
             command += "DISPLAY=$display"
@@ -154,7 +154,7 @@ class ProotRuntime(context: Context) {
     }
 
     private fun isSafeDirectory(file: File): Boolean =
-        file.exists() && file.isDirectory && !File(file.path).canonicalPath.let { it != file.absolutePath }
+        file.exists() && file.isDirectory && file.canonicalFile == file.absoluteFile
 
     private fun isSafeRegularFile(file: File): Boolean =
         file.exists() && file.isFile && file.canonicalFile == file.absoluteFile
