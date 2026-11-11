@@ -12,7 +12,7 @@ struct DistroEntry {
 
 #[tauri::command]
 fn list_distributions() -> Vec<DistroEntry> {
-    distroboxer_engine::supported_distros()
+    distroboxer::supported_distros()
         .iter()
         .map(|distro| DistroEntry {
             id: distro.id,
