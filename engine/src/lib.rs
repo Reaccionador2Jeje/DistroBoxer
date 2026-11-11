@@ -83,11 +83,10 @@ pub fn distro_path(base: impl AsRef<Path>, id: &str) -> Option<PathBuf> {
     is_supported(id).then(|| base.as_ref().join("distros").join(id))
 }
 
-/// Checks whether the expected root filesystem directory exists.
+/// Checks whether a valid root filesystem is present in app-private storage.
 pub fn is_installed(base: impl AsRef<Path>, id: &str) -> bool {
-    distro_path(base, id)
-        .and_then(|path| std::fs::symlink_metadata(path.join("rootfs/etc/os-release")).ok())
-        .map(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+    StorageManager::new(base.as_ref())
+        .is_installed(id)
         .unwrap_or(false)
 }
 
