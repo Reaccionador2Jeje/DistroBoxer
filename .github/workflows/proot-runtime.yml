@@ -1,14 +1,6 @@
 name: Build Android PRoot runtime
 
 on:
-  push:
-    branches:
-      - feat/proot-x11-runtime
-    paths:
-      - ".github/workflows/proot-runtime.yml"
-  pull_request:
-    paths:
-      - ".github/workflows/proot-runtime.yml"
   workflow_dispatch:
   workflow_call:
 
@@ -17,6 +9,7 @@ permissions:
 
 env:
   NDK_VERSION: r29
+  PROOT_CACHE_VERSION: "1"
   ANDROID_API: "26"
   TALLOC_VERSION: "2.4.4"
   TALLOC_SHA256: "55e47994018c13743485544e7206780ffbb3c8495e704a99636503e6e77abf59"
@@ -51,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proot/src/proot
-          key: proot-${{ matrix.abi }}-${{ env.PROOT_COMMIT }}-${{ env.NDK_VERSION }}-${{ env.TALLOC_VERSION }}-${{ hashFiles('.github/workflows/proot-runtime.yml') }}
+          key: proot-${{ env.PROOT_CACHE_VERSION }}-${{ matrix.abi }}-${{ env.PROOT_COMMIT }}-${{ env.NDK_VERSION }}-${{ env.TALLOC_VERSION }}
 
       - name: Download Android NDK
         if: steps.proot-cache.outputs.cache-hit != 'true'
