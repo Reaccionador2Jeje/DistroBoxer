@@ -22,6 +22,7 @@ on:
       - "engine/**"
       - "android/**"
       - ".github/workflows/android.yml"
+      - ".github/workflows/proot-runtime.yml"
   workflow_dispatch:
 
 permissions:
