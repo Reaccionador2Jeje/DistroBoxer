@@ -20,7 +20,9 @@
 ## 0.3.0 — Root filesystem installation
 - [ ] Select a trusted Debian rootfs source
 - [ ] Download with progress and cancellation
-- [ ] Verify a published checksum or signature
+- [x] SHA-256 file verification primitive
+- [ ] Select and pin a trusted Debian rootfs source
+- [ ] Verify its published checksum or signature
 - [ ] Safely extract rootfs archives
 - [ ] Recover cleanly from interrupted installs
 
