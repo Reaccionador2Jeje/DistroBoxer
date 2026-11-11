@@ -21,5 +21,6 @@ internal object NativeBridge {
         baseDirectory: String,
         archivePath: String,
         expectedSha256: String,
+        listener: NativeInstallListener,
     ): String?
 }
