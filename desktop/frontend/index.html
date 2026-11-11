@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="Manage Linux distribution environments with DistroBoxer.">
+  <link rel="icon" href="../icons/distroboxer.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>DistroBoxer</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="../icons/distroboxer.svg" alt="" width="42" height="42">
+      <div><strong>DistroBoxer</strong><span>Linux environments</span></div>
+    </div>
+    <span class="platform">DESKTOP PREVIEW · 0.3.0</span>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">ONE ENGINE · MULTIPLE DISTROS</p>
+      <h1>Your Linux environments,<br><span>one place.</span></h1>
+      <p class="intro">Browse supported distributions. Installation and runtime controls will arrive when each bootstrap source has been verified.</p>
+      <div class="system" id="engine-status">Connecting to Rust engine…</div>
+    </section>
+    <section class="section-heading">
+      <div><p class="eyebrow">CATALOG</p><h2>Distributions</h2></div>
+      <span id="distro-count">Loading…</span>
+    </section>
+    <section id="catalog" class="catalog" aria-live="polite"></section>
+  </main>
+  <footer>Atdev Dev · DistroBoxer · Open source</footer>
+  <script src="./main.js"></script>
+</body>
+</html>
