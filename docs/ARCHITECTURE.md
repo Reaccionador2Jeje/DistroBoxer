@@ -11,7 +11,7 @@
 
 ### Android application
 
-A native Kotlin application using Jetpack Compose provides the initial UI shell, detects the device ABI, and displays the supported distribution catalog. It communicates with the Rust core through JNI. The first native method returns the distribution catalog as JSON.
+A native Kotlin application using Jetpack Compose provides the initial UI shell, detects the device ABI, and displays the supported distribution catalog. It communicates with the Rust core through JNI. The native API returns the distribution catalog as JSON, prepares per-distribution app-private storage, and checks whether a valid root filesystem is present. Storage preparation creates directories and metadata only; it does not download or execute Linux.
 
 ### Rust engine
 
