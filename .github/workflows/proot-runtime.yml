@@ -51,7 +51,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/android-ndk"
           cd "$RUNNER_TEMP/android-ndk"
-          curl --fail --location --retry 3 \
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --retry-max-time 300 \
             "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip" \
             --output ndk.zip
           unzip -q ndk.zip
@@ -76,7 +76,7 @@ jobs:
       - name: Download and verify talloc source
         run: |
           set -euo pipefail
-          curl --fail --location --retry 3 \
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --retry-max-time 300 \
             "https://download.samba.org/pub/talloc/talloc-${TALLOC_VERSION}.tar.gz" \
             --output talloc.tar.gz
           echo "${TALLOC_SHA256}  talloc.tar.gz" | sha256sum --check -
