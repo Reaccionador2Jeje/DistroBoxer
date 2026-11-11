@@ -33,6 +33,8 @@ pub struct Distro {
     pub homepage: &'static str,
     /// Bootstrap format or source family; not an assertion that an installer exists.
     pub bootstrap: &'static str,
+    /// Archive format required by the installer backend.
+    pub archive_format: &'static str,
 }
 
 /// Initial supported distribution catalog.
@@ -44,6 +46,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.debian.org/",
         bootstrap: "OCI root filesystem",
+        archive_format: "oci",
     },
     Distro {
         id: "alpine",
@@ -52,6 +55,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://alpinelinux.org/",
         bootstrap: "Official minirootfs tarball",
+        archive_format: "tar.gz",
     },
     Distro {
         id: "ubuntu",
@@ -68,6 +72,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://archlinux.org/",
         bootstrap: "Official bootstrap tarball (architecture-dependent)",
+        archive_format: "tar.zst",
     },
     Distro {
         id: "fedora",
@@ -92,6 +97,7 @@ pub const DISTROS: &[Distro] = &[
         architectures: &["aarch64", "x86_64"],
         homepage: "https://voidlinux.org/",
         bootstrap: "Official rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "kali",
