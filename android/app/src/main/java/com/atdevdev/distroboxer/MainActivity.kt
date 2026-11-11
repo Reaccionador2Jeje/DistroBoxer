@@ -144,8 +144,10 @@ class MainActivity : ComponentActivity() {
                     onSurfaceVariant = Color(0xFFA4B5C8),
                 ),
             ) {
-                DistroBoxerScreen()
-                if (crashReport.isNotBlank()) {
+                if (crashReport.isBlank()) {
+                    DistroBoxerScreen()
+                } else {
+                    // Keep the crashing screen out of composition until the report is read.
                     AlertDialog(
                         onDismissRequest = {
                             crashReportFile.delete()
