@@ -6,17 +6,19 @@ The project uses a Rust core and a native Android application. On Android, the i
 
 ## Project status
 
-Early development — version 0.1.0.
+Early development — version 0.2.0 in progress.
 
 Current scope:
 - Rust engine with a small, validated distribution catalog.
 - Safe calculation of per-distribution storage paths.
-- Installation-state detection.
+- Isolated per-distribution storage layout.
+- JSON metadata and installation lifecycle states.
+- Root filesystem validation using the standard `etc/os-release` marker.
 - Architecture and roadmap documentation.
 - CI checks for formatting, compilation, and tests.
 
 Not implemented yet:
-- Downloading or extracting root filesystems.
+- Downloading or extracting root filesystems (design documented, implementation pending).
 - Bundling or launching PRoot.
 - Package-manager execution.
 - Android UI or JNI integration.
