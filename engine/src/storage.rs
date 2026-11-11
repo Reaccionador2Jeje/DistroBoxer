@@ -142,7 +142,31 @@ impl StorageManager {
         Ok(())
     }
 
-    /// Updates a distribution's lifecycle state and optional error message.
+    /// Applies a validated installation lifecycle transition.
+    pub fn transition_status(
+        &self,
+        id: &str,
+        status: InstallStatus,
+        last_error: Option<String>,
+    ) -> io::Result<()> {
+        self.prepare_distro(id)?;
+        let mut metadata = self
+            .read_metadata(id)?
+            .expect("prepare_distro creates metadata");
+
+        if !metadata.status.can_transition_to(status) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid distribution installation state transition",
+            ));
+        }
+
+        metadata.status = status;
+        metadata.last_error = last_error;
+        self.write_metadata(id, &metadata)
+    }
+
+    /// Sets a lifecycle state directly for recovery and administrative repair.
     pub fn set_status(
         &self,
         id: &str,
@@ -220,6 +244,39 @@ mod tests {
         assert!(distro_dir.join("downloads").is_dir());
         assert!(distro_dir.join("metadata.json").is_file());
         assert!(!manager.is_installed("debian").unwrap());
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn validates_installation_state_transitions() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+
+        manager
+            .transition_status("debian", InstallStatus::Preparing, None)
+            .unwrap();
+        manager
+            .transition_status("debian", InstallStatus::Downloading, None)
+            .unwrap();
+
+        assert_eq!(
+            manager
+                .transition_status("debian", InstallStatus::Installed, None)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+
+        manager
+            .transition_status("debian", InstallStatus::Extracting, None)
+            .unwrap();
+        manager
+            .transition_status("debian", InstallStatus::Installed, None)
+            .unwrap();
+
+        let metadata = manager.read_metadata("debian").unwrap().unwrap();
+        assert_eq!(metadata.status, InstallStatus::Installed);
 
         fs::remove_dir_all(base).unwrap();
     }
