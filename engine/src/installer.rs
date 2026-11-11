@@ -264,6 +264,18 @@ mod tests {
     }
 
     #[test]
+    fn rewrites_absolute_linux_symlinks_to_safe_relative_targets() {
+        assert_eq!(
+            absolute_link_as_relative(
+                Path::new("etc/mtab"),
+                Path::new("/proc/self/mounts"),
+            )
+            .unwrap(),
+            Path::new("../proc/self/mounts")
+        );
+    }
+
+    #[test]
     fn rejects_parent_directory_entries() {
         assert_eq!(
             validate_archive_path(Path::new("../outside"))
