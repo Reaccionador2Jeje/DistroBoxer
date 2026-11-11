@@ -1,0 +1,11 @@
+{
+  "id": "opensuse",
+  "name": "openSUSE",
+  "package_manager": "zypper",
+  "architectures": ["aarch64", "x86_64"],
+  "bootstrap": "OCI image",
+  "homepage": "https://www.opensuse.org/",
+  "status": "planned",
+  "rootfs_source": null,
+  "checksum": null
+}
