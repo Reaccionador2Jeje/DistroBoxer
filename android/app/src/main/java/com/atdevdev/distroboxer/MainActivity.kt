@@ -228,10 +228,10 @@ for numero in range(1, 6):
         runCatching {
             x11ScreenView = x11Backend.start(context)
             x11Running = true
-            x11Status = "X11 activo en \${x11Backend.displayName()} · solo loopback"
+            x11Status = "X11 activo en ${x11Backend.displayName()} · solo loopback"
         }.onFailure {
             x11Running = false
-            x11Status = "No se pudo iniciar X11: \${it.message}"
+            x11Status = "No se pudo iniciar X11: ${it.message}"
         }
     }
 
@@ -250,7 +250,7 @@ for numero in range(1, 6):
                 session.sendLine("startxfce4")
                 x11Status = "Comando startxfce4 enviado. Revisa la terminal si el escritorio no aparece."
             } catch (error: Exception) {
-                x11Status = "No se pudo iniciar XFCE: \${error.message ?: "error desconocido"}. Comprueba que Alpine y XFCE estén instalados."
+                x11Status = "No se pudo iniciar XFCE: ${error.message ?: "error desconocido"}. Comprueba que Alpine y XFCE estén instalados."
             }
         }
     }
