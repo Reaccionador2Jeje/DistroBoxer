@@ -1,6 +1,6 @@
 # Root filesystem installation design
 
-This document defines the installation pipeline before network download and archive extraction are implemented.
+This document defines the installation pipeline. A generic gzip-compressed tar extraction and verified rootfs promotion path is now implemented; trusted source manifests and per-distribution bootstrap adapters remain outstanding.
 
 ## Required stages
 
