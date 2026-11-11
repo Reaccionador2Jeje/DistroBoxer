@@ -16,7 +16,7 @@ Implemented:
 - SHA-256 verification primitive.
 - Android Compose application and JNI bridge to Rust.
 - Android adaptive launcher icon and app identity assets.
-- WorkManager archive-download pipeline with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground progress notifications.
+- WorkManager download-to-install chain for verified gzip tarballs, with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground notifications.\n- Rust gzip tar extractor with path traversal and unsafe link checks, staging validation, and rootfs promotion.
 - Initial Tauri desktop application for Windows, Linux, and macOS builds.
 - Android, desktop, and tagged-release GitHub Actions workflows.
 - Initial F-Droid listing text and submission checklist.
