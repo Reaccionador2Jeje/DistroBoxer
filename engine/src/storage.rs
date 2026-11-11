@@ -193,6 +193,16 @@ impl StorageManager {
         archive_path: impl AsRef<Path>,
         expected_sha256: &str,
     ) -> io::Result<()> {
+        let distro = find_distro(id).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
+        })?;
+        if distro.archive_format != "tar.gz" {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "this distribution requires a different bootstrap format",
+            ));
+        }
+
         let distro_dir = self.prepare_distro(id)?;
         let downloads_dir = fs::canonicalize(distro_dir.join("downloads"))?;
         let archive_path = fs::canonicalize(archive_path)?;
