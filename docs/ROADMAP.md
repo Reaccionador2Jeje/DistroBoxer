@@ -1,54 +1,52 @@
 # DistroBoxer roadmap
 
-## 0.1.0 — Core foundation
-- [x] Rust workspace and library crate
-- [x] Initial distribution catalog
-- [x] Distribution identifier validation
-- [x] Storage path helper
-- [x] Root filesystem presence check
-- [x] Unit tests and CI
-- [x] Android Compose preview shell
+## 0.3.0 — Cross-platform foundation
+- [x] Shared Rust engine and distribution catalog
+- [x] Add profiles for Debian, Ubuntu, Alpine, Arch, Fedora, openSUSE, Void, and Kali
+- [x] Android JNI catalog integration
+- [x] Android adaptive launcher icon
+- [x] WorkManager verified archive download pipeline
+- [x] Foreground download progress notification
+- [x] Tauri desktop shell and shared catalog UI
+- [x] Linux, Windows, and macOS desktop CI
+- [x] Tagged GitHub prerelease workflow
+- [x] Android app listing text and F-Droid preparation checklist
 
-## 0.2.0 — Storage and metadata
-- [x] Per-distro metadata model
-- [x] Safe directory creation with symlink rejection
-- [x] Installation lifecycle state model
-- [x] Metadata persistence with atomic file replacement
-- [x] Rootfs presence validation
-- [x] Initial aarch64 and x86_64 compatibility metadata
-- [ ] Storage usage reporting
+## 0.4.0 — Trusted installer foundation
+- [ ] Publish pinned, architecture-specific source manifests for every distro
+- [ ] Confirm official archive provenance and checksums/signatures
+- [ ] Implement secure tar.gz, tar.xz, and tar.zst extraction
+- [ ] Implement OCI manifest, layer, and whiteout handling
+- [ ] Recover cleanly from interrupted downloads and extraction
+- [ ] Add storage usage reporting and install/uninstall UI
+- [ ] Complete and test Alpine first-install flow
 
-## 0.3.0 — Root filesystem installation
-- [ ] Select a trusted Debian rootfs source
-- [ ] Download with progress and cancellation
-- [x] SHA-256 file verification primitive
-- [ ] Select and pin a trusted Debian rootfs source
-- [ ] Verify its published checksum or signature
-- [ ] Safely extract rootfs archives
-- [ ] Recover cleanly from interrupted installs
-
-## 0.4.0 — Android runtime
-- [ ] Evaluate and package a compatible PRoot build
-- [x] Detect Android device ABI in the preview UI
-- [x] Map Android ABIs to Linux userspace architectures in Rust
-- [ ] Configure isolated runtime environment
+## 0.5.0 — Android runtime
+- [ ] Review and package a compatible PRoot runtime with license notices
+- [ ] Configure isolated runtime environment and bind mounts
 - [ ] Start and stop a distribution process safely
+- [ ] Add user-visible foreground service for active Linux sessions
+- [ ] Handle Android process recreation and session recovery
+- [ ] Interactive terminal session API and UI
 
-## 0.5.0 — Terminal
-- [ ] Interactive terminal session API
-- [ ] Standard input/output streaming
-- [ ] Session lifecycle and exit status
-- [ ] Basic terminal UI
+## 0.6.0 — Additional distro installers
+- [ ] Debian and Ubuntu OCI installers
+- [ ] Fedora and openSUSE OCI installers
+- [ ] Arch Linux bootstrap installer
+- [ ] Void Linux rootfs installer
+- [ ] Kali Linux OCI installer
+- [ ] Automated install tests per ABI
 
-## 0.6.0 — Android integration
-- [x] Initial Kotlin/Compose application shell
-- [x] JNI bridge for the Rust distribution catalog
-- [x] JNI API for preparing distro storage and checking installation state
-- [x] Initial distribution catalog screen
-- [ ] Full distribution management screens
-- [ ] Installation progress and error reporting
+## 0.7.0 — Desktop runtime
+- [ ] Windows WSL2 integration and capability detection
+- [ ] Linux container/runtime integration
+- [ ] Desktop installation and terminal UI
+- [ ] Platform-specific packaged installers and icons
 
-## 1.0.0 — First public release
-- [ ] Debian install and launch flow
-- [ ] Documentation and troubleshooting
-- [ ] Release builds and reproducible CI
+## 0.8.0 — Publication
+- [ ] Production signing configuration for Android
+- [ ] Signed APK/AAB release pipeline
+- [ ] Reproducible F-Droid build without network dependency
+- [ ] Submit and pass F-Droid inclusion review
+- [ ] Publish Windows and Linux desktop packages
+- [ ] User documentation, privacy policy, and license inventory
