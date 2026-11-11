@@ -290,8 +290,16 @@ impl StorageManager {
         }
 
         let release_file = etc_dir.join("os-release");
-        match fs::symlink_metadata(&release_file) {
-            Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
+        let resolved_release = match fs::canonicalize(&release_file) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        if !resolved_release.starts_with(&rootfs) {
+            return Ok(false);
+        }
+        match fs::metadata(&resolved_release) {
+            Ok(metadata) => Ok(metadata.is_file()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         }
@@ -310,15 +318,21 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
     }
 
     let release = rootfs.join("etc/os-release");
-    let metadata = fs::symlink_metadata(&release)?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
+    let rootfs_canonical = fs::canonicalize(rootfs)?;
+    let resolved_release = fs::canonicalize(&release).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("root filesystem is missing a readable etc/os-release: {error}"),
+        )
+    })?;
+    if !resolved_release.starts_with(&rootfs_canonical) || !fs::metadata(&resolved_release)?.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "root filesystem is missing a regular etc/os-release file",
+            "root filesystem etc/os-release does not resolve to a regular file inside rootfs",
         ));
     }
 
-    let release_contents = fs::read_to_string(release)?;
+    let release_contents = fs::read_to_string(resolved_release)?;
     let expected_id_line = format!("ID={expected_id}");
     if !release_contents
         .lines()
