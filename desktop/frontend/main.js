@@ -14,7 +14,7 @@ function renderDistro(distro) {
   details.textContent = `${distro.package_manager.toUpperCase()} · ${distro.architectures.join(", ")}`;
   const bootstrap = document.createElement("p");
   bootstrap.className = "muted";
-  bootstrap.textContent = `Bootstrap: ${distro.bootstrap}`;
+  bootstrap.textContent = `Bootstrap: ${distro.bootstrap} (${distro.archive_format})`;
   const link = document.createElement("a");
   link.href = distro.homepage;
   link.target = "_blank";
