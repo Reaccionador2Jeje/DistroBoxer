@@ -185,8 +185,9 @@ class ProotRuntime(context: Context) {
         } finally {
             temporary.delete()
         }
-        destination
+        return destination
     }
+
     @Synchronized
     fun stop() {
         activeProcess?.let { process ->
