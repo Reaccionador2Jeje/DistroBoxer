@@ -45,6 +45,9 @@ class ProotRuntime(context: Context) {
         require(isRuntimeAvailable()) { "El ejecutable PRoot todavía no está instalado" }
 
         val rootfs = resolveRootfs(distroId)
+        // PRoot crea archivos auxiliares en este directorio del host Android.
+        // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
+        val prootTempDirectory = prepareProotTempDirectory()
         val command = mutableListOf(
             prootFile.absolutePath,
             "--kill-on-exit",
@@ -81,13 +84,47 @@ class ProotRuntime(context: Context) {
             .apply {
                 environment().clear()
                 environment()["HOME"] = appContext.filesDir.absolutePath
-                environment()["TMPDIR"] = appContext.cacheDir.absolutePath
+                environment()["TMPDIR"] = prootTempDirectory.absolutePath
+                environment()["PROOT_TMP_DIR"] = prootTempDirectory.absolutePath
                 environment()["PATH"] = "/system/bin:/system/xbin"
             }
             .start()
 
         activeProcess = process
         return process
+    }
+
+    /**
+     * Prepara y prueba el directorio temporal del host que PRoot utiliza para
+     * sus archivos internos. Se valida la ruta canónica para no aceptar symlinks.
+     */
+    private fun prepareProotTempDirectory(): File {
+        val cacheRoot = appContext.cacheDir.canonicalFile
+        val tempDirectory = File(cacheRoot, "proot-tmp")
+        if (!tempDirectory.exists()) {
+            check(tempDirectory.mkdirs()) {
+                "No se pudo crear PROOT_TMP_DIR en el almacenamiento temporal de DistroBoxer."
+            }
+        }
+        val canonicalTemp = tempDirectory.canonicalFile
+        check(canonicalTemp.parentFile == cacheRoot && canonicalTemp.isDirectory) {
+            "PROOT_TMP_DIR no es un directorio válido."
+        }
+        check(canonicalTemp.canWrite()) {
+            "No hay permisos de escritura en PROOT_TMP_DIR."
+        }
+
+        val probe = File.createTempFile(".proot-check-", ".tmp", canonicalTemp)
+        try {
+            check(probe.isFile && probe.canWrite()) {
+                "PROOT_TMP_DIR existe, pero no permite crear archivos."
+            }
+        } finally {
+            check(!probe.exists() || probe.delete()) {
+                "No se pudo limpiar el archivo de prueba de PROOT_TMP_DIR."
+            }
+        }
+        return canonicalTemp
     }
 
     /** Returns true only when a validated rootfs exists for this distro. */
