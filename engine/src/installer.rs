@@ -32,12 +32,31 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
     let destination = fs::canonicalize(destination)?;
 
     let mut archive = tar::Archive::new(reader);
+    let mut entry_count = 0_usize;
+    let mut total_unpacked_bytes = 0_u64;
     archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     archive.set_unpack_xattrs(false);
 
     for item in archive.entries()? {
         let mut entry = item?;
+        entry_count += 1;
+        if entry_count > MAX_ARCHIVE_ENTRIES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "archive contains too many entries",
+            ));
+        }
+        total_unpacked_bytes = total_unpacked_bytes
+            .checked_add(entry.header().size()?)
+            .filter(|size| *size <= MAX_UNPACKED_BYTES)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "archive exceeds the uncompressed size limit",
+                )
+            })?;
+
         let entry_path = entry.path()?.into_owned();
         validate_archive_path(&entry_path)?;
 
@@ -115,6 +134,9 @@ fn validate_symlink_target(link_path: &Path, target: &Path) -> io::Result<()> {
 
     Ok(())
 }
+
+const MAX_ARCHIVE_ENTRIES: usize = 500_000;
+const MAX_UNPACKED_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 
 fn invalid_archive_path() -> io::Error {
     io::Error::new(
