@@ -17,9 +17,6 @@
             tools:node="merge" />
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
-        <activity
-            android:name=".StartupProbeActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
