@@ -3,6 +3,7 @@
   "name": "Alpine Linux",
   "package_manager": "apk",
   "architectures": ["aarch64", "x86_64"],
+  "archive_format": "tar.gz",
   "status": "planned",
   "rootfs_source": null,
   "checksum": null
