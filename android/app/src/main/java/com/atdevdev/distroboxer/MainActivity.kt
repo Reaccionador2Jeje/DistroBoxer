@@ -41,18 +41,19 @@ private data class DistroUi(
     val packageManager: String,
     val description: String,
     val bootstrap: String,
+    val archiveFormat: String,
     val homepage: String,
 )
 
 private val fallbackDistros = listOf(
-    DistroUi("debian", "Debian", "APT", "Estable y versátil", "OCI", "https://www.debian.org/"),
-    DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar", "OCI", "https://ubuntu.com/"),
-    DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista", "Minirootfs", "https://alpinelinux.org/"),
-    DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release", "Bootstrap", "https://archlinux.org/"),
-    DistroUi("fedora", "Fedora", "DNF", "Tecnología y software reciente", "OCI", "https://fedoraproject.org/"),
-    DistroUi("opensuse", "openSUSE", "ZYPPER", "Distribución comunitaria", "OCI", "https://www.opensuse.org/"),
-    DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "Rootfs tarball", "https://voidlinux.org/"),
-    DistroUi("kali", "Kali Linux", "APT", "Distribución especializada", "OCI", "https://www.kali.org/"),
+    DistroUi("debian", "Debian", "APT", "Estable y versátil", "OCI", "oci", "https://www.debian.org/"),
+    DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar", "OCI", "oci", "https://ubuntu.com/"),
+    DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista", "Minirootfs", "tar.gz", "https://alpinelinux.org/"),
+    DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release", "Bootstrap", "tar.zst", "https://archlinux.org/"),
+    DistroUi("fedora", "Fedora", "DNF", "Tecnología y software reciente", "OCI", "oci", "https://fedoraproject.org/"),
+    DistroUi("opensuse", "openSUSE", "ZYPPER", "Distribución comunitaria", "OCI", "oci", "https://www.opensuse.org/"),
+    DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "Rootfs tarball", "tar.xz", "https://voidlinux.org/"),
+    DistroUi("kali", "Kali Linux", "APT", "Distribución especializada", "OCI", "oci", "https://www.kali.org/"),
 )
 
 private data class DistroCatalog(
@@ -74,6 +75,7 @@ private fun loadDistroCatalog(): DistroCatalog {
                     List(architectures.length()) { architectures.getString(it) }
                         .joinToString(", "),
                 bootstrap = item.getString("bootstrap"),
+                archiveFormat = item.getString("archive_format"),
                 homepage = item.getString("homepage"),
             )
         }
@@ -226,7 +228,7 @@ private fun DistroCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "Base: ${distro.bootstrap} · Instalador en desarrollo",
+                    "Base: ${distro.bootstrap} (${distro.archiveFormat}) · Instalador en desarrollo",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
