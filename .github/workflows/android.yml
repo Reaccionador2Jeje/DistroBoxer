@@ -48,4 +48,11 @@ jobs:
           gradle-version: "8.9"
 
       - name: Build debug APK
-        run: gradle :android:app:assembleDebug
+        run: gradle :android:app:assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DistroBoxer-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
