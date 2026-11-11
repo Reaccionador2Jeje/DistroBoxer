@@ -90,3 +90,115 @@ async function loadCatalog() {
 }
 
 loadCatalog();
+
+
+const terminalOutput = document.querySelector("#terminal-output");
+const terminalDistro = document.querySelector("#terminal-distro");
+const terminalStart = document.querySelector("#terminal-start");
+const terminalStop = document.querySelector("#terminal-stop");
+const terminalInput = document.querySelector("#terminal-input");
+const terminalForm = document.querySelector("#terminal-form");
+const terminalSend = document.querySelector("#terminal-send");
+const terminalStatus = document.querySelector("#terminal-status");
+const terminalSessionLabel = document.querySelector("#terminal-session-label");
+let activeTerminalSession = null;
+let terminalUnlistenOutput = null;
+let terminalUnlistenExit = null;
+
+function appendTerminal(text) {
+  terminalOutput.textContent += text;
+  if (terminalOutput.textContent.length > 120000) {
+    terminalOutput.textContent = terminalOutput.textContent.slice(-90000);
+  }
+  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+}
+
+function setTerminalState(active, label) {
+  terminalStatus.textContent = label;
+  terminalSessionLabel.textContent = active ? "● SESIÓN ACTIVA" : "● SIN SESIÓN";
+  terminalStart.disabled = active;
+  terminalStop.disabled = !active;
+  terminalInput.disabled = !active;
+  terminalSend.disabled = !active;
+  if (active) terminalInput.focus();
+}
+
+async function installTerminalListeners() {
+  if (!window.__TAURI__?.event) return;
+  terminalUnlistenOutput = await window.__TAURI__.event.listen("terminal-output", (event) => {
+    if (event.payload.session_id === activeTerminalSession) appendTerminal(event.payload.data);
+  });
+  terminalUnlistenExit = await window.__TAURI__.event.listen("terminal-exit", (event) => {
+    if (event.payload.session_id !== activeTerminalSession) return;
+    appendTerminal("\\n[ DistroBoxer: proceso finalizado ]\\n");
+    activeTerminalSession = null;
+    setTerminalState(false, "SESIÓN FINALIZADA");
+  });
+}
+
+function populateTerminalDistros() {
+  terminalDistro.replaceChildren();
+  for (const distro of distributions) {
+    const option = document.createElement("option");
+    option.value = distro.id;
+    option.textContent = distro.name;
+    terminalDistro.append(option);
+  }
+}
+
+terminalStart?.addEventListener("click", async () => {
+  try {
+    const distroId = terminalDistro.value;
+    if (!distroId) throw new Error("No hay una distribución seleccionada.");
+    terminalStart.disabled = true;
+    terminalStatus.textContent = "INICIANDO…";
+    const sessionId = await window.__TAURI__.core.invoke("start_terminal", {
+      distroId, cols: 100, rows: 28
+    });
+    activeTerminalSession = sessionId;
+    appendTerminal("\\n[ DistroBoxer: shell iniciada en " + distroId + " · sesión " + sessionId + " ]\\n");
+    setTerminalState(true, "CONECTADO · " + distroId.toUpperCase());
+  } catch (error) {
+    appendTerminal("\\n[ error ] " + String(error) + "\\n");
+    setTerminalState(false, "ERROR AL INICIAR");
+  }
+});
+
+terminalStop?.addEventListener("click", async () => {
+  if (activeTerminalSession === null) return;
+  const sessionId = activeTerminalSession;
+  try {
+    await window.__TAURI__.core.invoke("stop_terminal", { sessionId });
+    appendTerminal("\\n[ DistroBoxer: sesión detenida ]\\n");
+  } catch (error) {
+    appendTerminal("\\n[ error al detener ] " + String(error) + "\\n");
+  } finally {
+    activeTerminalSession = null;
+    setTerminalState(false, "SESIÓN DETENIDA");
+  }
+});
+
+terminalForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (activeTerminalSession === null || !terminalInput.value) return;
+  const data = terminalInput.value + "\\n";
+  terminalInput.value = "";
+  try {
+    await window.__TAURI__.core.invoke("write_terminal", {
+      sessionId: activeTerminalSession, data
+    });
+  } catch (error) {
+    appendTerminal("\\n[ error de entrada ] " + String(error) + "\\n");
+  }
+});
+
+terminalInput?.addEventListener("keydown", async (event) => {
+  if (event.ctrlKey && event.key.toLowerCase() === "c" && activeTerminalSession !== null) {
+    event.preventDefault();
+    await window.__TAURI__.core.invoke("write_terminal", {
+      sessionId: activeTerminalSession, data: "\\u0003"
+    });
+  }
+});
+
+installTerminalListeners().catch((error) => appendTerminal("\\n[ error de eventos ] " + String(error)));
