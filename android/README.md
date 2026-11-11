@@ -11,7 +11,10 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 - Rust safely extracts gzip-compressed tar archives into a staging directory and promotes a validated rootfs atomically.
 - The first install preview is Alpine 3.24.4 for ARM64 and x86_64, using official archive and adjacent SHA-256 manifest URLs.
 - `DistroDownloadScheduler` requires an allowlisted HTTPS source plus either a pinned digest or same-host checksum manifest.
-- OCI layer support for Debian/Ubuntu/Fedora/openSUSE/Kali, xz/zstd extraction for Void/Arch, PRoot, and interactive terminal sessions are not implemented yet.
+- PRoot is built from a pinned Termux source revision for `arm64-v8a` and `x86_64` by the reusable GitHub Actions workflow. Android CI packages both binaries into the APK assets.
+- On first launch, the app copies the matching PRoot binary into private app storage and verifies its SHA-256 before marking it executable.
+- The PRoot executable is integrated, but interactive terminal sessions, persistent session service, X11 server/renderer, and desktop launch flow are still under development.
+- OCI layer support for Debian/Ubuntu/Fedora/openSUSE/Kali and xz/zstd extraction for Void/Arch are not implemented yet.
 
 ## Android permissions
 
@@ -38,7 +41,7 @@ cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI uploads it as a workflow artifact.
+The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI first builds both PRoot ABIs, packages them as app assets with per-binary checksums, then uploads the APK as a workflow artifact. A local Gradle build can still compile without those optional runtime assets, but the PRoot installer will report them as unavailable.
 
 ## Release channels
 
