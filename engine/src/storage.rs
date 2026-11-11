@@ -360,6 +360,66 @@ mod tests {
     }
 
     #[test]
+    fn installs_a_verified_gzip_rootfs_archive() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use tar::{Builder, Header};
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let distro_dir = manager.prepare_distro("alpine").unwrap();
+        let archive_path = distro_dir.join("downloads/rootfs.tar.gz");
+
+        let file = fs::File::create(&archive_path).unwrap();
+        let encoder = GzEncoder::new(file, Compression::default());
+        let mut builder = Builder::new(encoder);
+        let contents = b"ID=alpine\n";
+        let mut header = Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "etc/os-release", &contents[..])
+            .unwrap();
+        builder.into_inner().unwrap().finish().unwrap();
+
+        let digest = crate::sha256_file(&archive_path).unwrap();
+        manager
+            .install_tar_gz("alpine", &archive_path, &digest)
+            .unwrap();
+
+        assert!(manager.is_installed("alpine").unwrap());
+        let metadata = manager.read_metadata("alpine").unwrap().unwrap();
+        assert_eq!(metadata.status, InstallStatus::Installed);
+        assert_eq!(
+            fs::read_to_string(distro_dir.join("rootfs/etc/os-release")).unwrap(),
+            "ID=alpine\n"
+        );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn rejects_gzip_rootfs_with_wrong_digest() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let distro_dir = manager.prepare_distro("alpine").unwrap();
+        let archive_path = distro_dir.join("downloads/empty.tar.gz");
+        fs::write(&archive_path, b"not a real archive").unwrap();
+
+        assert_eq!(
+            manager
+                .install_tar_gz("alpine", &archive_path, &"0".repeat(64))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        assert!(!manager.is_installed("alpine").unwrap());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn validates_installation_state_transitions() {
         let base = temp_dir();
         let manager = StorageManager::new(&base);
