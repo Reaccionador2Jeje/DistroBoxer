@@ -37,12 +37,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -187,6 +189,15 @@ for numero in range(1, 6):
     var terminalStatus by remember { mutableStateOf("Sesión cerrada") }
     var terminalSession by remember { mutableStateOf<TerminalSession?>(null) }
     var terminalDisplay by remember { mutableStateOf<String?>(null) }
+
+    val currentTerminalSession by rememberUpdatedState(terminalSession)
+    DisposableEffect(prootRuntime, x11Backend) {
+        onDispose {
+            currentTerminalSession?.close()
+            prootRuntime.stop()
+            x11Backend.stop()
+        }
+    }
 
     suspend fun openLinuxShell(distroId: String = "alpine", display: String? = null): TerminalSession {
         val current = terminalSession
