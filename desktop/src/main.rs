@@ -8,6 +8,7 @@ struct DistroEntry {
     architectures: &'static [&'static str],
     homepage: &'static str,
     bootstrap: &'static str,
+    archive_format: &'static str,
 }
 
 #[tauri::command]
@@ -21,6 +22,7 @@ fn list_distributions() -> Vec<DistroEntry> {
             architectures: distro.architectures,
             homepage: distro.homepage,
             bootstrap: distro.bootstrap,
+            archive_format: distro.archive_format,
         })
         .collect()
 }
