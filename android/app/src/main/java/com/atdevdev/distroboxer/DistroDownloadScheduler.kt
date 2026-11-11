@@ -19,12 +19,35 @@ object DistroDownloadScheduler {
         expectedSha256: String,
         fileName: String,
     ) {
+        enqueueInternal(context, distroId, sourceUrl, expectedSha256, "", fileName)
+    }
+
+    /** Uses a checksum manifest served beside the official archive. */
+    fun enqueueWithChecksumManifest(
+        context: Context,
+        distroId: String,
+        sourceUrl: String,
+        checksumUrl: String,
+        fileName: String,
+    ) {
+        enqueueInternal(context, distroId, sourceUrl, "", checksumUrl, fileName)
+    }
+
+    private fun enqueueInternal(
+        context: Context,
+        distroId: String,
+        sourceUrl: String,
+        expectedSha256: String,
+        checksumUrl: String,
+        fileName: String,
+    ) {
         val download = OneTimeWorkRequestBuilder<DistroArchiveDownloadWorker>()
             .setInputData(
                 workDataOf(
                     DistroArchiveDownloadWorker.KEY_DISTRO_ID to distroId,
                     DistroArchiveDownloadWorker.KEY_SOURCE_URL to sourceUrl,
                     DistroArchiveDownloadWorker.KEY_SHA256 to expectedSha256,
+                    DistroArchiveDownloadWorker.KEY_CHECKSUM_URL to checksumUrl,
                     DistroArchiveDownloadWorker.KEY_FILE_NAME to fileName,
                 ),
             )
