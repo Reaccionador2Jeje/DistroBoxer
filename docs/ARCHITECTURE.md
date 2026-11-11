@@ -11,12 +11,12 @@
 
 ### Android application
 
-A native Kotlin application using Jetpack Compose is planned for the UI, lifecycle, permissions, and app-private storage. It will communicate with the Rust core through a JNI-compatible interface.
+A native Kotlin application using Jetpack Compose provides the initial UI shell, detects the device ABI, and displays the supported distribution catalog. It will communicate with the Rust core through a JNI-compatible interface.
 
 ### Rust engine
 
 The engine owns:
-- Distribution catalog and validation.
+- Distribution catalog, architecture compatibility, and validation.
 - Storage layout and installation state.
 - Runtime configuration.
 - Process lifecycle abstractions.
@@ -49,4 +49,4 @@ Future platform adapters may use WSL2 on Windows and suitable namespaces/contain
 
 ## Current implementation
 
-Version 0.1.0 contains only a Rust catalog, identifier validation, path construction, and installation-state detection. No Linux distribution is downloaded or executed yet.
+The Rust engine provides a distribution catalog, architecture compatibility checks, app-private storage layout, JSON lifecycle metadata, rootfs presence validation, and SHA-256 file verification. The Android app is an early Compose preview. No Linux distribution is downloaded, extracted, or executed yet.
