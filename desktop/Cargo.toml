@@ -8,6 +8,8 @@ license = "MIT"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+resvg = "0.45"
+tiny-skia = "0.11"
 
 [dependencies]
 distroboxer-engine = { path = "../engine" }
