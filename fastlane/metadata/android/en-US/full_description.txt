@@ -1,0 +1,14 @@
+DistroBoxer is an open-source Linux distribution environment manager.
+
+The project is built around a shared Rust engine, with a native Android application and a desktop application for Windows and Linux.
+
+Planned capabilities:
+- Browse supported Linux distributions.
+- Download and verify trusted root filesystem archives.
+- Keep each distribution isolated in app-private storage.
+- Manage long-running downloads with progress notifications.
+- Launch Linux userspace environments through a compatible unprivileged runtime.
+
+DistroBoxer does not require Android root access. A userspace runtime such as PRoot does not provide a separate Linux kernel.
+
+This is an early development build. Distribution installation and terminal execution are still under development; the current catalog is not a claim that every listed distribution is installable yet.
