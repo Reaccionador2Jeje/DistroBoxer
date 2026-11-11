@@ -1,0 +1,43 @@
+name: Desktop CI
+
+on:
+  push:
+    paths:
+      - "desktop/**"
+      - "engine/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "engine/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check desktop application
+        run: cargo check --manifest-path desktop/Cargo.toml
+      - name: Build desktop executable
+        run: cargo build --release --manifest-path desktop/Cargo.toml
