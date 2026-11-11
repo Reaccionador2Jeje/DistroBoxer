@@ -1,7 +1,7 @@
 //! App-private storage management for Linux distributions.
 
-use crate::{distro_path, find_distro, is_supported};
 use crate::metadata::{DistroMetadata, InstallStatus};
+use crate::{distro_path, find_distro, is_supported};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -49,11 +49,7 @@ impl StorageManager {
 
         if self.read_metadata(id)?.is_none() {
             let distro = find_distro(id).expect("validated distribution must exist");
-            let metadata = DistroMetadata::new(
-                distro.id,
-                distro.name,
-                distro.package_manager,
-            );
+            let metadata = DistroMetadata::new(distro.id, distro.name, distro.package_manager);
             self.write_metadata(id, &metadata)?;
         }
 
