@@ -1,0 +1,11 @@
+{
+  "id": "kali",
+  "name": "Kali Linux",
+  "package_manager": "apt",
+  "architectures": ["aarch64", "x86_64"],
+  "bootstrap": "OCI image",
+  "homepage": "https://www.kali.org/",
+  "status": "planned",
+  "rootfs_source": null,
+  "checksum": null
+}
