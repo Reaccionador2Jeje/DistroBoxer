@@ -37,7 +37,7 @@ pub fn extract_tar_gz_with_progress(
 
 /// Extracts an uncompressed tar stream after validating every path and link.
 pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Result<()> {
-    extract_tar_with_progress(reader, destination, |_| {})
+    extract_tar_with_progress(reader, destination, &mut |_| {})
 }
 
 /// Extracts a tar stream and emits a live log line every 500 archive entries.
