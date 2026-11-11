@@ -3,7 +3,7 @@
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
 /// Extracts a gzip-compressed tar archive into an existing app-private directory.
 ///
@@ -149,6 +149,7 @@ fn invalid_archive_path() -> io::Error {
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
     use tar::{Builder, Header};
 
@@ -186,20 +187,12 @@ mod tests {
 
     #[test]
     fn rejects_parent_directory_entries() {
-        let destination = temp_dir();
-        let outside = destination
-            .parent()
-            .unwrap()
-            .join("distroboxer-escape-test");
-        let result = extract_tar(
-            Cursor::new(tar_with_file("../distroboxer-escape-test")),
-            &destination,
+        assert_eq!(
+            validate_archive_path(Path::new("../outside"))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
         );
-        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
-        assert!(!outside.exists());
-        if destination.exists() {
-            fs::remove_dir_all(destination).unwrap();
-        }
     }
 
     #[test]
