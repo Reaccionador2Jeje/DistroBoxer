@@ -1,8 +1,8 @@
 //! App-private storage management for Linux distributions.
 
 use crate::metadata::{DistroMetadata, InstallStatus};
-use crate::{distro_path, find_distro, is_supported};
 use crate::verify_sha256;
+use crate::{distro_path, find_distro, is_supported};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
