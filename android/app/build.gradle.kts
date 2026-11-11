@@ -20,6 +20,9 @@ android {
         compose = true
     }
 
+    // Pinned Java X11 server source is included as an embedded Android library.
+    sourceSets.getByName("main").java.srcDir("../x11server/library/src/main/java")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
