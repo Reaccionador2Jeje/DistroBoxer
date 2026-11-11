@@ -117,7 +117,7 @@ class ProotRuntime(context: Context) {
             "TMPDIR=/tmp",
         )
         if (!display.isNullOrBlank()) {
-            require(display.matches(Regex(":[0-9]{1,2}(\\.[0-9]{1,2})?"))) {
+            (display == "127.0.0.1:1" || display.matches(Regex(":[0-9]{1,2}"))) {
                 "DISPLAY no válido"
             }
             command += "DISPLAY=$display"
