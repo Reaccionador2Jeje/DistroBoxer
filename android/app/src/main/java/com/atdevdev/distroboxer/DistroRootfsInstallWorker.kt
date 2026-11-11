@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 
 /** Extracts a previously verified gzip tarball into the selected private rootfs. */
 class DistroRootfsInstallWorker(
@@ -38,6 +39,13 @@ class DistroRootfsInstallWorker(
                     applicationContext.filesDir.absolutePath,
                     archivePath,
                     expectedHash,
+                    object : NativeInstallListener {
+                        override fun onInstallLog(message: String) {
+                            runBlocking {
+                                setProgress(workDataOf(KEY_LIVE_LOG to message))
+                            }
+                        }
+                    },
                 )
             }
             if (installError == "") {
@@ -83,6 +91,7 @@ class DistroRootfsInstallWorker(
     }
 
     companion object {
+        const val KEY_LIVE_LOG = "live_install_log"
         private const val CHANNEL_ID = "distro_installation"
         private const val NOTIFICATION_ID = 7302
     }
