@@ -22,6 +22,7 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeSupporte
                 "architectures": distro.architectures,
                 "homepage": distro.homepage,
                 "bootstrap": distro.bootstrap,
+                "archive_format": distro.archive_format,
             })
         })
         .collect();
