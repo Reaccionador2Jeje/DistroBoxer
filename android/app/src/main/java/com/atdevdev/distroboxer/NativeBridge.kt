@@ -11,4 +11,8 @@ internal object NativeBridge {
     }
 
     external fun nativeSupportedDistros(): String
+
+    external fun nativePrepareDistro(distroId: String, baseDirectory: String): Boolean
+
+    external fun nativeIsInstalled(distroId: String, baseDirectory: String): Boolean
 }
