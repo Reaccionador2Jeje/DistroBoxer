@@ -80,6 +80,7 @@ private enum class AppTab(val label: String, val symbol: String) {
     HOME("Inicio", "⌂"),
     DISTROS("Distros", "▦"),
     TERMINAL("Terminal", ">_"),
+    DESKTOP("Escritorio", "▣"),
     SETTINGS("Ajustes", "⚙"),
 }
 
@@ -272,6 +273,7 @@ private fun DistroBoxerScreen() {
                     }
                 }
                 AppTab.TERMINAL -> TerminalPage()
+                AppTab.DESKTOP -> DesktopPage()
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
                     deviceAbi = deviceAbi,
@@ -450,6 +452,72 @@ private fun TerminalPage() {
             detail = "El trabajo en segundo plano actual cubre descargas. Las sesiones Linux necesitarán un servicio persistente y controles para detenerlas.",
             good = false,
         )
+    }
+}
+
+
+@Composable
+private fun DesktopPage() {
+    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Text("Escritorios Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Entornos gráficos sobre X11", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(18.dp)) {
+                Text("DISPLAY SERVER", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text("X11 + PRoot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "DistroBoxer necesitará un servidor gráfico Android, un socket X11 compartido con el contenedor y un gestor de sesiones para iniciar el escritorio.",
+                    color = Color(0xFFC4D5DF),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(9.dp))
+                Text("Estado: integración en diseño", color = Color(0xFFFFC078), fontWeight = FontWeight.SemiBold)
+            }
+        }
+        DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primera opción para móviles y equipos modestos", "PRIMER OBJETIVO")
+        DesktopEnvironmentCard("LXQt", "Ligero y modular", "Alternativa con bajo consumo de recursos", "PLANIFICADO")
+        DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional con paneles y menú", "PLANIFICADO")
+        SectionCard(
+            title = "Cómo funcionará",
+            value = "X server → PRoot → escritorio",
+            detail = "El servidor X11 dibuja la interfaz; PRoot ejecuta los procesos Linux sin root; XFCE/LXQt/MATE son los escritorios que se muestran.",
+            good = true,
+        )
+        Text(
+            "No se necesita pagar por los escritorios. DistroBoxer será gratuito; cada entorno se descargará desde los repositorios oficiales de su distribución.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun DesktopEnvironmentCard(name: String, subtitle: String, detail: String, status: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.height(4.dp))
+                Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+            Surface(shape = RoundedCornerShape(50), color = Color(0xFF34291B)) {
+                Text(status, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color(0xFFFFC078), style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }
 
