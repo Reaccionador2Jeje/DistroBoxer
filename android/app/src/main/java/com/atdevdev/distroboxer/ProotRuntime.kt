@@ -145,7 +145,7 @@ class ProotRuntime(context: Context) {
     }.isSuccess
 
     /**
-     * Copies a source file into /root/projects inside the selected Linux rootfs.
+     * Copies a source file into /root/projects inside the selected Linux rootfs and returns its destination.
      * The project name is restricted to a plain filename; no path fragments are accepted.
      */
     @Synchronized
