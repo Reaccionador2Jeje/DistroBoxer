@@ -13,6 +13,15 @@ pub fn extract_tar_gz(
     archive_path: impl AsRef<Path>,
     destination: impl AsRef<Path>,
 ) -> io::Result<()> {
+    extract_tar_gz_with_progress(archive_path, destination, |_| {})
+}
+
+/// Extracts a gzip tarball and reports extraction progress as entries are unpacked.
+pub fn extract_tar_gz_with_progress(
+    archive_path: impl AsRef<Path>,
+    destination: impl AsRef<Path>,
+    mut progress: impl FnMut(String),
+) -> io::Result<()> {
     let archive_path = archive_path.as_ref();
     let file_metadata = fs::symlink_metadata(archive_path)?;
     if !file_metadata.is_file() || file_metadata.file_type().is_symlink() {
@@ -23,11 +32,20 @@ pub fn extract_tar_gz(
     }
 
     let file = File::open(archive_path)?;
-    extract_tar(GzDecoder::new(file), destination)
+    extract_tar_with_progress(GzDecoder::new(file), destination, &mut progress)
 }
 
 /// Extracts an uncompressed tar stream after validating every path and link.
 pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Result<()> {
+    extract_tar_with_progress(reader, destination, |_| {})
+}
+
+/// Extracts a tar stream and emits a live log line every 500 archive entries.
+pub fn extract_tar_with_progress<R: Read>(
+    reader: R,
+    destination: impl AsRef<Path>,
+    progress: &mut dyn FnMut(String),
+) -> io::Result<()> {
     fs::create_dir_all(destination.as_ref())?;
     let destination = fs::canonicalize(destination)?;
 
@@ -45,6 +63,9 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
     for item in archive.entries()? {
         let mut entry = item?;
         entry_count += 1;
+        if entry_count == 1 || entry_count % 500 == 0 {
+            progress(format!("Extrayendo archivos Linux… {entry_count} entradas procesadas"));
+        }
         if entry_count > MAX_ARCHIVE_ENTRIES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -113,6 +134,7 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
         }
     }
 
+    progress(format!("Creando {} enlaces simbólicos…", deferred_symlinks.len()));
     for (link_path, target) in deferred_symlinks {
         let full_link_path = destination.join(&link_path);
         let parent = full_link_path.parent().ok_or_else(invalid_archive_path)?;
@@ -125,6 +147,7 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
         })?;
     }
 
+    progress(format!("Extracción terminada: {entry_count} entradas"));
     Ok(())
 }
 
