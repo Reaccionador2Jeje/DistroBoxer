@@ -1,0 +1,91 @@
+name: DistroBoxer Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Build Android testing APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ""
+      - name: Install Android SDK and NDK
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - name: Build Rust Android libraries
+        run: |
+          cargo install cargo-ndk --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release -p distroboxer-engine
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Assemble Android APK
+        run: gradle :android:app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DistroBoxer-Android-testing
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  desktop:
+    name: Build desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            binary: target/release/distroboxer-desktop
+            artifact: DistroBoxer-Linux
+          - os: windows-latest
+            binary: target/release/distroboxer-desktop.exe
+            artifact: DistroBoxer-Windows
+          - os: macos-latest
+            binary: target/release/distroboxer-desktop
+            artifact: DistroBoxer-macOS
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build desktop executable
+        run: cargo build --release --manifest-path desktop/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.binary }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub prerelease
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: false
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          generate_release_notes: true
+          files: release-assets/**/*
