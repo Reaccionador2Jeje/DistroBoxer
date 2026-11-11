@@ -67,6 +67,15 @@ pub fn supported_architectures(id: &str) -> Option<&'static [&'static str]> {
     find_distro(id).map(|distro| distro.architectures)
 }
 
+/// Maps an Android ABI to its Linux userspace architecture name.
+pub fn linux_arch_from_android_abi(android_abi: &str) -> Option<&'static str> {
+    match android_abi {
+        "arm64-v8a" => Some("aarch64"),
+        "x86_64" => Some("x86_64"),
+        _ => None,
+    }
+}
+
 /// Checks whether a distribution supports a Linux architecture name.
 pub fn supports_architecture(id: &str, architecture: &str) -> bool {
     supported_architectures(id)
@@ -117,6 +126,9 @@ mod tests {
         assert!(supports_architecture("debian", "aarch64"));
         assert!(supports_architecture("alpine", "x86_64"));
         assert!(!supports_architecture("ubuntu", "armv7l"));
+        assert_eq!(linux_arch_from_android_abi("arm64-v8a"), Some("aarch64"));
+        assert_eq!(linux_arch_from_android_abi("x86_64"), Some("x86_64"));
+        assert_eq!(linux_arch_from_android_abi("armeabi-v7a"), None);
     }
 
     #[test]
