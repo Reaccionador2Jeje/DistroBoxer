@@ -7,7 +7,7 @@
 - [x] Storage path helper
 - [x] Root filesystem presence check
 - [x] Unit tests and CI
-- [ ] Android app shell
+- [x] Android Compose preview shell
 
 ## 0.2.0 — Storage and metadata
 - [x] Per-distro metadata model
@@ -41,7 +41,7 @@
 - [ ] Basic terminal UI
 
 ## 0.6.0 — Android integration
-- [ ] Kotlin/Compose application
+- [x] Initial Kotlin/Compose application shell
 - [ ] Rust bridge
 - [ ] Distribution management screens
 - [ ] Installation progress and error reporting
