@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class DistroUi(
     val id: String,
@@ -134,10 +137,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
+    val runtimeAbi = Build.SUPPORTED_ABIS.firstOrNull { it == "arm64-v8a" || it == "x86_64" }
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
     val prootRuntime = remember { ProotRuntime(context) }
-    val prootAvailable = remember { prootRuntime.isRuntimeAvailable() }
+    var prootAvailable by remember { mutableStateOf(prootRuntime.isRuntimeAvailable()) }
+    var prootInstallStatus by remember {
+        mutableStateOf(if (prootAvailable) "PRoot ya está instalado." else "Preparando runtime PRoot…")
+    }
+    LaunchedEffect(runtimeAbi) {
+        if (!prootAvailable) {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val abi = runtimeAbi ?: error("Este dispositivo no tiene una ABI compatible.")
+                    prootRuntime.installBundledRuntime(abi)
+                    check(prootRuntime.isRuntimeAvailable()) { "El binario instalado no se puede ejecutar." }
+                }
+            }
+            prootAvailable = result.isSuccess
+            prootInstallStatus = result.exceptionOrNull()?.message
+                ?: "PRoot instalado y verificado para $runtimeAbi."
+        }
+    }
     val x11Available = remember { EmbeddedX11Backend().isAvailable(context) }
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
@@ -277,7 +298,7 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage(prootAvailable = prootAvailable)
+                AppTab.TERMINAL -> TerminalPage(prootAvailable = prootAvailable, prootInstallStatus = prootInstallStatus)
                 AppTab.DESKTOP -> DesktopPage(prootAvailable = prootAvailable, x11Available = x11Available)
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
@@ -423,7 +444,7 @@ private fun DistroCard(
 }
 
 @Composable
-private fun TerminalPage(prootAvailable: Boolean) {
+private fun TerminalPage(prootAvailable: Boolean, prootInstallStatus: String) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -449,16 +470,17 @@ private fun TerminalPage(prootAvailable: Boolean) {
                 Spacer(Modifier.height(12.dp))
                 Text("\$  runtime status", color = Color(0xFF62E6B7))
                 Text(
-                    if (prootAvailable) "  PRoot: ejecutable detectado" else "  PRoot: falta el binario Android",
+                    if (prootAvailable) "  PRoot: instalado y verificado" else "  PRoot: no disponible",
                     color = if (prootAvailable) Color(0xFF62E6B7) else Color(0xFFFFC078),
                 )
+                Text(prootInstallStatus, color = Color(0xFF9FB7AA), style = MaterialTheme.typography.bodySmall)
             }
         }
         SectionCard(
             title = "Motor PRoot",
-            value = if (prootAvailable) "Ejecutable detectado" else "Pendiente de empaquetado",
-            detail = if (prootAvailable) "El runtime está disponible; falta conectar el servicio de sesiones y la terminal interactiva." else "El gestor de sesiones ya está preparado, pero todavía falta incluir un binario PRoot compatible con Android.",
-            good = false,
+            value = if (prootAvailable) "Instalado para este dispositivo" else "No disponible",
+            detail = if (prootAvailable) "El binario verificado está instalado. Aún falta conectar la sesión interactiva y tener una distribución Linux instalada." else prootInstallStatus,
+            good = prootAvailable,
         )
     }
 }
