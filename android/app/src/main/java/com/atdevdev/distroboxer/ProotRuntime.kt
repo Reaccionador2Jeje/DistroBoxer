@@ -7,10 +7,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * Starts an installed Linux rootfs with PRoot inside the app's own sandbox.
- *
- * The PRoot executable must be provisioned at filesDir/runtime/bin/proot by a
- * trusted, checksum-verified runtime installer. It is deliberately not searched
- * for in shared storage or another application's private directory.
+ * PRoot is packaged per ABI and extracted by Android into nativeLibraryDir.
  */
 class ProotRuntime(context: Context) {
     private val appContext = context.applicationContext
@@ -191,16 +188,4 @@ class ProotRuntime(context: Context) {
     private fun isSafeRegularFile(file: File): Boolean =
         file.exists() && file.isFile && file.canonicalFile == file.absoluteFile
 
-    private fun sha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
 }
