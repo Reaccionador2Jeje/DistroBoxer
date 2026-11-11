@@ -17,7 +17,7 @@ Implemented:
 - SHA-256 verification primitive for downloaded artifacts.
 - Root filesystem presence validation using `etc/os-release`.
 - Android Compose application with device ABI detection.
-- JNI bridge loading the distribution catalog directly from Rust.
+- JNI bridge loading the distribution catalog directly from Rust.\n- JNI methods for preparing per-distro app-private storage and checking rootfs state.
 - Rust and Android GitHub Actions workflows.
 
 Not implemented yet:
@@ -68,7 +68,7 @@ The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk
 
 ## Android runtime direction
 
-The Android app calls the Rust engine through JNI to load the distribution catalog and detects the device ABI. Install actions remain disabled until the rootfs installer and Linux runtime are ready. The Rust core remains independent of Android UI code.
+The Android app calls the Rust engine through JNI to load the distribution catalog, prepare per-distribution storage, check rootfs state, and detect the device ABI. Preparing storage does not install Linux. Install actions remain disabled until the rootfs installer and Linux runtime are ready. The Rust core remains independent of Android UI code.
 
 ## Security principles
 
