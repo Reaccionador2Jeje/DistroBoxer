@@ -1,0 +1,12 @@
+[package]
+name = "distroboxer-engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Cross-platform core for managing Linux distribution environments"
+
+[lib]
+name = "distroboxer"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
