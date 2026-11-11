@@ -34,11 +34,13 @@ class ProotRuntime(context: Context) {
             "SHA-256 inválido"
         }
 
-        val binDirectory = File(filesRoot, "runtime/bin")
+        val runtimeDirectory = File(filesRoot, "runtime")
+        val binDirectory = File(runtimeDirectory, "bin")
         if (!binDirectory.exists() && !binDirectory.mkdirs()) {
             error("No se pudo crear el directorio del runtime")
         }
-        require(binDirectory.canonicalFile.parentFile == File(filesRoot, "runtime").canonicalFile) {
+        require(runtimeDirectory.canonicalFile == runtimeDirectory.absoluteFile &&
+            binDirectory.canonicalFile.parentFile == runtimeDirectory.canonicalFile) {
             "Directorio de runtime no válido"
         }
 
@@ -137,8 +139,12 @@ class ProotRuntime(context: Context) {
         require(distroId.matches(Regex("[a-z][a-z0-9_-]{1,31}"))) {
             "Identificador de distribución no válido"
         }
-        val distroDirectory = File(filesRoot, "distros/$distroId").canonicalFile
-        require(distroDirectory.parentFile == File(filesRoot, "distros").canonicalFile) {
+        val distrosDirectory = File(filesRoot, "distros")
+        require(distrosDirectory.canonicalFile == distrosDirectory.absoluteFile) {
+            "Directorio de distribuciones no válido"
+        }
+        val distroDirectory = File(distrosDirectory, distroId).canonicalFile
+        require(distroDirectory.parentFile == distrosDirectory.canonicalFile) {
             "Ruta de distribución no válida"
         }
         val rootfs = File(distroDirectory, "rootfs").canonicalFile
