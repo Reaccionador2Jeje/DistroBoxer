@@ -1,0 +1,8 @@
+{
+  "id": "debian",
+  "name": "Debian",
+  "package_manager": "apt",
+  "status": "planned",
+  "rootfs_source": null,
+  "checksum": null
+}
