@@ -17,7 +17,8 @@ Implemented:
 - SHA-256 verification primitive for downloaded artifacts.
 - Root filesystem presence validation using `etc/os-release`.
 - Android Compose application with device ABI detection.
-- JNI bridge loading the distribution catalog directly from Rust.\n- JNI methods for preparing per-distro app-private storage and checking rootfs state.
+- JNI bridge loading the distribution catalog directly from Rust.
+- JNI methods for preparing per-distro app-private storage and checking rootfs state.
 - Rust and Android GitHub Actions workflows.
 
 Not implemented yet:
