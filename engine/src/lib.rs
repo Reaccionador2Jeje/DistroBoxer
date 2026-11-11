@@ -20,6 +20,8 @@ pub use runtime::{
     current_runtime_kind, current_runtime_status, RuntimeBackend, RuntimeError, RuntimeKind,
     RuntimeState, RuntimeStatus,
 };
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
+pub use runtime::{find_proot_executable, LinuxProotBackend};
 pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
