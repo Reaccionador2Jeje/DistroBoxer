@@ -42,8 +42,8 @@
 
 ## 0.6.0 — Android integration
 - [x] Initial Kotlin/Compose application shell
-- [x] JNI bridge for the Rust distribution catalog
-- [ ] Distribution management screens
+- [x] JNI bridge for the Rust distribution catalog\n- [x] JNI API for preparing distro storage and checking installation state
+- [x] Initial distribution catalog screen\n- [ ] Full distribution management screens
 - [ ] Installation progress and error reporting
 
 ## 1.0.0 — First public release
