@@ -4,6 +4,8 @@ use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Component, Path};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 /// Extracts a gzip-compressed tar archive into an existing app-private directory.
 ///
@@ -56,6 +58,9 @@ pub fn extract_tar_with_progress<R: Read>(
     // creation until every regular entry is unpacked, then rewrite them as
     // equivalent relative links so they cannot escape the host app directory.
     let mut deferred_symlinks: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
+    // Directory permissions are applied last so extraction can still create
+    // children even when the archive records restrictive directory modes.
+    let mut deferred_directories: Vec<(std::path::PathBuf, u32)> = Vec::new();
     archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     archive.set_unpack_xattrs(false);
@@ -88,6 +93,9 @@ pub fn extract_tar_with_progress<R: Read>(
         validate_archive_path(&entry_path)?;
 
         let entry_type = entry.header().entry_type();
+        // Preserve ordinary Unix permissions (especially executable bits),
+        // but never restore setuid, setgid, or sticky bits from an archive.
+        let safe_mode = entry.header().mode()? as u32 & 0o777;
         // Android's app sandbox cannot recreate device nodes or FIFOs. PRoot
         // provides runtime /dev bindings, so safely skip these archive entries.
         if entry_type.is_block_special()
@@ -134,6 +142,13 @@ pub fn extract_tar_with_progress<R: Read>(
                 ),
             ));
         }
+
+        let extracted_path = destination.join(&entry_path);
+        if entry_type.is_dir() {
+            deferred_directories.push((entry_path, safe_mode));
+        } else if entry_type.is_file() {
+            apply_safe_mode(&extracted_path, safe_mode)?;
+        }
     }
 
     progress(format!(
@@ -155,7 +170,23 @@ pub fn extract_tar_with_progress<R: Read>(
         })?;
     }
 
+    // Apply directory modes deepest-first, after all entries and links exist.
+    deferred_directories.sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
+    for (directory, mode) in deferred_directories {
+        apply_safe_mode(&destination.join(directory), mode)?;
+    }
+
     progress(format!("Extracción terminada: {entry_count} entradas"));
+    Ok(())
+}
+
+#[cfg(unix)]
+fn apply_safe_mode(path: &Path, mode: u32) -> io::Result<()> {
+    fs::set_permissions(path, fs::Permissions::from_mode(mode & 0o777))
+}
+
+#[cfg(not(unix))]
+fn apply_safe_mode(_path: &Path, _mode: u32) -> io::Result<()> {
     Ok(())
 }
 
