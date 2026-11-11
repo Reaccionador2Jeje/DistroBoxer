@@ -94,7 +94,6 @@ class DistroArchiveDownloadWorker(
                 val location = connection!!.getHeaderField("Location")
                     ?: error("Redirect without Location header")
                 require(redirect < MAX_REDIRECTS) { "Too many redirects" }
-                val next = Uri.parse(currentUrl).buildUpon().encodedPath(location).build()
                 val resolved = URL(URL(currentUrl), location).toString()
                 require(isTrustedSource(resolved)) { "Redirect target is not trusted HTTPS" }
                 currentUrl = resolved
@@ -129,7 +128,7 @@ class DistroArchiveDownloadWorker(
                         output.fd.sync()
                     }
                 }
-                val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+                val actualHash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                 require(actualHash == expectedHash) { "SHA-256 verification failed" }
                 connection!!.disconnect()
                 return
