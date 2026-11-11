@@ -217,8 +217,13 @@ class ProotRuntime(context: Context) {
         val rootfs = File(distroDirectory, "rootfs").canonicalFile
         require(rootfs.parentFile == distroDirectory) { "Ruta rootfs no válida" }
         require(isSafeDirectory(rootfs)) { "No existe un rootfs Linux válido" }
-        require(isSafeRegularFile(File(rootfs, "etc/os-release"))) {
-            "La distribución no contiene etc/os-release"
+        val releaseFile = File(rootfs, "etc/os-release")
+        val resolvedRelease = releaseFile.canonicalFile
+        require(
+            resolvedRelease.toPath().startsWith(rootfs.toPath()) &&
+                resolvedRelease.isFile
+        ) {
+            "La distribución no contiene un etc/os-release válido dentro de rootfs"
         }
         require(File(rootfs, "bin/sh").exists() || File(rootfs, "usr/bin/sh").exists()) {
             "La distribución no contiene un shell"
