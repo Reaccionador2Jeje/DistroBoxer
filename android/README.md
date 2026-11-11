@@ -9,12 +9,22 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 - Includes an adaptive launcher icon.
 - Includes a WorkManager download-to-install chain with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground notifications.
 - Rust safely extracts gzip-compressed tar archives into a staging directory and promotes a validated rootfs atomically.
-- The first install preview is Alpine 3.24.4 for ARM64 and x86_64, using official archive and adjacent SHA-256 manifest URLs.
-- `DistroDownloadScheduler` requires an allowlisted HTTPS source plus either a pinned digest or same-host checksum manifest.
-- PRoot is built from a pinned Termux source revision for `arm64-v8a` and `x86_64` by the reusable GitHub Actions workflow. Android CI packages both binaries into the APK assets.
-- On first launch, the app copies the matching PRoot binary into private app storage and verifies its SHA-256 before marking it executable.
-- The PRoot executable is integrated, but interactive terminal sessions, persistent session service, X11 server/renderer, and desktop launch flow are still under development.
-- OCI layer support for Debian/Ubuntu/Fedora/openSUSE/Kali and xz/zstd extraction for Void/Arch are not implemented yet.
+- The first Android install path is Alpine 3.24.4 for ARM64 and x86_64, using official archive and adjacent SHA-256 manifest URLs.
+- PRoot is built from a pinned Termux source revision for `arm64-v8a` and `x86_64`; Android CI bundles the binaries into the APK.
+- On first launch, the app copies the matching PRoot binary into private app storage and verifies SHA-256.
+- The Terminal screen is connected to an interactive PRoot shell and supports sending commands and displaying output.
+- The Programar screen includes a Python source editor, private project saving, and a path that copies the file into Alpine and runs it through the shell.
+- A pinned Java X11 server is embedded in the Android app. The display surface is shown inside Compose and the TCP listener is patched to bind only to loopback.
+- XFCE is the first experimental desktop target; full X11 extension and desktop compatibility is not yet verified.
+
+## Known limitations
+
+- Alpine is currently the only Android rootfs installation path; other catalog distributions are not yet installable end-to-end.
+- The PRoot shell and terminal UI are integrated in source but still require physical-device validation.
+- Python must be installed inside Alpine before running Python projects (for example, `apk add python3`).
+- A persistent foreground service for long-running Linux sessions is not implemented.
+- The embedded Java X11 server is lightweight, not a full X.Org replacement; GLX, GPU acceleration, and complete XFCE/LXQt/MATE support are not promised.
+- OCI layer support for Debian/Ubuntu/Fedora/openSUSE/Kali and xz/zstd extraction for Void/Arch remain in development.
 
 ## Android permissions
 
@@ -22,7 +32,7 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 - `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`: show visible progress for a user-initiated archive transfer.
 - `POST_NOTIFICATIONS`: allow Android 13+ to show download notifications.
 
-The app does not request all-files access or broad shared-storage permissions. Distribution files stay in app-private storage. Android may still apply background execution limits; WorkManager handles deferrable archive transfers. A future Linux terminal session will require a separate, persistent user-visible session service.
+The app does not request all-files access or broad shared-storage permissions. Distribution files stay in app-private storage. Android may still apply background execution limits; WorkManager handles deferrable archive transfers.
 
 ## Build
 
@@ -33,15 +43,18 @@ Requirements:
 - Rust stable with `aarch64-linux-android` and `x86_64-linux-android` targets
 - `cargo-ndk`
 - Gradle 8.9
+- Git with submodule support
 
-From the repository root:
+From the repository root, initialize the pinned X11 source and apply the loopback-only patch:
 
 ```sh
+git submodule update --init --recursive
+bash scripts/patch-x11-server.sh
 cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release -p distroboxer-engine
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI first builds both PRoot ABIs, packages them as app assets with per-binary checksums, then uploads the APK as a workflow artifact. A local Gradle build can still compile without those optional runtime assets, but the PRoot installer will report them as unavailable.
+The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI builds both PRoot ABIs, checks out the pinned X11 submodule, applies the loopback-only patch, and uploads the APK as a workflow artifact.
 
 ## Release channels
 
