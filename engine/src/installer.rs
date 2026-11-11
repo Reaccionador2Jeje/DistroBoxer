@@ -34,6 +34,10 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
     let mut archive = tar::Archive::new(reader);
     let mut entry_count = 0_usize;
     let mut total_unpacked_bytes = 0_u64;
+    // Absolute symlinks are normal in Linux rootfs archives. Defer their
+    // creation until every regular entry is unpacked, then rewrite them as
+    // equivalent relative links so they cannot escape the host app directory.
+    let mut deferred_symlinks: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
     archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     archive.set_unpack_xattrs(false);
@@ -73,7 +77,14 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
             let target = entry.link_name()?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "symbolic link has no target")
             })?;
-            validate_symlink_target(&entry_path, &target)?;
+            let safe_target = if target.is_absolute() {
+                absolute_link_as_relative(&entry_path, &target)?
+            } else {
+                validate_symlink_target(&entry_path, &target)?;
+                target
+            };
+            deferred_symlinks.push((entry_path, safe_target));
+            continue;
         } else if entry_type.is_hard_link() {
             let target = entry.link_name()?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "hard link has no target")
@@ -102,7 +113,58 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
         }
     }
 
+    for (link_path, target) in deferred_symlinks {
+        let full_link_path = destination.join(&link_path);
+        let parent = full_link_path.parent().ok_or_else(invalid_archive_path)?;
+        fs::create_dir_all(parent)?;
+        std::os::unix::fs::symlink(&target, &full_link_path).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("failed to create symlink '{}': {error}", link_path.display()),
+            )
+        })?;
+    }
+
     Ok(())
+}
+
+fn absolute_link_as_relative(link_path: &Path, target: &Path) -> io::Result<std::path::PathBuf> {
+    let target = target.strip_prefix("/").map_err(|_| invalid_archive_path())?;
+    validate_archive_path(target)?;
+
+    let parent = link_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent_components: Vec<_> = parent
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect();
+    let target_components: Vec<_> = target
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect();
+
+    let common = parent_components
+        .iter()
+        .zip(target_components.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut relative = std::path::PathBuf::new();
+    for _ in common..parent_components.len() {
+        relative.push("..");
+    }
+    for component in target_components.iter().skip(common) {
+        relative.push(component);
+    }
+    if relative.as_os_str().is_empty() {
+        relative.push(".");
+    }
+    Ok(relative)
 }
 
 fn validate_archive_path(path: &Path) -> io::Result<()> {
