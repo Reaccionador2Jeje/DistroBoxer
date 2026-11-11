@@ -2,6 +2,7 @@ package com.atdevdev.distroboxer
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
+import org.json.JSONObject
 
 private data class DistroUi(
     val id: String,
@@ -198,6 +200,46 @@ private fun DistroBoxerScreen() {
                                 "No se pudo preparar el espacio."
                             }
                         },
+                        onInstall = {
+                            val linuxArch = when {
+                                Build.SUPPORTED_ABIS.contains("arm64-v8a") -> "aarch64"
+                                Build.SUPPORTED_ABIS.contains("x86_64") -> "x86_64"
+                                else -> null
+                            }
+
+                            if (linuxArch == null) {
+                                storageStates[distro.id] = "Esta arquitectura todavía no está soportada."
+                            } else {
+                                runCatching {
+                                    val manifest = context.assets
+                                        .open("distro-manifests/alpine.json")
+                                        .bufferedReader()
+                                        .use { JSONObject(it.readText()) }
+                                    val sourceUrl = manifest
+                                        .getJSONObject("rootfs_source")
+                                        .getString(linuxArch)
+                                    val checksumUrl = manifest
+                                        .getJSONObject("checksum_source")
+                                        .getString(linuxArch)
+                                    val fileName = Uri.parse(sourceUrl).lastPathSegment
+                                        ?: error("Nombre de archivo inválido")
+
+                                    DistroDownloadScheduler.enqueueWithChecksumManifest(
+                                        context = context,
+                                        distroId = distro.id,
+                                        sourceUrl = sourceUrl,
+                                        checksumUrl = checksumUrl,
+                                        fileName = fileName,
+                                    )
+                                }.onSuccess {
+                                    storageStates[distro.id] =
+                                        "Alpine: instalación iniciada en segundo plano. El runtime de terminal aún está pendiente."
+                                }.onFailure { error ->
+                                    storageStates[distro.id] =
+                                        "No se pudo iniciar la instalación: ${error.message}"
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -211,6 +253,7 @@ private fun DistroCard(
     engineConnected: Boolean,
     storageStatus: String?,
     onPrepare: () -> Unit,
+    onInstall: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -228,7 +271,8 @@ private fun DistroCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "Base: ${distro.bootstrap} (${distro.archiveFormat}) · Instalador en desarrollo",
+                    "Base: ${distro.bootstrap} (${distro.archiveFormat}) · " +
+                        if (distro.id == "alpine") "Instalador de prueba disponible" else "Instalador en desarrollo",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
@@ -240,8 +284,15 @@ private fun DistroCard(
                     )
                 }
             }
-            Button(onClick = onPrepare, enabled = engineConnected) {
-                Text("Preparar espacio")
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = onPrepare, enabled = engineConnected) {
+                    Text("Preparar espacio")
+                }
+                if (distro.id == "alpine") {
+                    Button(onClick = onInstall, enabled = engineConnected) {
+                        Text("Instalar Alpine")
+                    }
+                }
             }
         }
     }
