@@ -8,7 +8,7 @@ This document defines the installation pipeline before network download and arch
 2. Resolve an architecture supported by both the Android device and selected rootfs.
 3. Obtain a pinned rootfs URL from reviewed project metadata.
 4. Download to the distribution's private `downloads/` directory.
-5. Verify a SHA-256 digest obtained from a trusted, reviewed source.
+5. Verify a SHA-256 digest obtained from a trusted, reviewed source using the engine's integrity module.
 6. Inspect archive entries and reject absolute paths, parent traversal, and unsafe link targets.
 7. Extract into a temporary staging directory.
 8. Validate expected root filesystem structure.
