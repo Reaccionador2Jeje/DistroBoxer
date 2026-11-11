@@ -22,9 +22,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 
@@ -84,6 +86,8 @@ class MainActivity : ComponentActivity() {
 private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
     val catalog = remember { loadDistroCatalog() }
+    val context = LocalContext.current
+    val storageStates = remember { mutableStateMapOf<String, String>() }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -131,7 +135,25 @@ private fun DistroBoxerScreen() {
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(catalog.distros, key = { it.id }) { distro ->
-                    DistroCard(distro)
+                    DistroCard(
+                        distro = distro,
+                        engineConnected = catalog.engineConnected,
+                        storageStatus = storageStates[distro.id],
+                        onPrepare = {
+                            val prepared = runCatching {
+                                NativeBridge.nativePrepareDistro(
+                                    distro.id,
+                                    context.filesDir.absolutePath,
+                                )
+                            }.getOrDefault(false)
+
+                            storageStates[distro.id] = if (prepared) {
+                                "Espacio preparado. Linux todavía no está instalado."
+                            } else {
+                                "No se pudo preparar el espacio."
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -139,7 +161,12 @@ private fun DistroBoxerScreen() {
 }
 
 @Composable
-private fun DistroCard(distro: DistroUi) {
+private fun DistroCard(
+    distro: DistroUi,
+    engineConnected: Boolean,
+    storageStatus: String?,
+    onPrepare: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -155,9 +182,16 @@ private fun DistroCard(distro: DistroUi) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (storageStatus != null) {
+                    Text(
+                        storageStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
-            Button(onClick = {}, enabled = false) {
-                Text("Próximamente")
+            Button(onClick = onPrepare, enabled = engineConnected) {
+                Text("Preparar espacio")
             }
         }
     }
