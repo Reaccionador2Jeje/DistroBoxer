@@ -20,6 +20,8 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeSupporte
                 "name": distro.name,
                 "package_manager": distro.package_manager,
                 "architectures": distro.architectures,
+                "homepage": distro.homepage,
+                "bootstrap": distro.bootstrap,
             })
         })
         .collect();
