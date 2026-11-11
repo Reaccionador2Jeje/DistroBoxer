@@ -1,0 +1,11 @@
+{
+  "id": "fedora",
+  "name": "Fedora",
+  "package_manager": "dnf",
+  "architectures": ["aarch64", "x86_64"],
+  "bootstrap": "OCI image",
+  "homepage": "https://fedoraproject.org/",
+  "status": "planned",
+  "rootfs_source": null,
+  "checksum": null
+}
