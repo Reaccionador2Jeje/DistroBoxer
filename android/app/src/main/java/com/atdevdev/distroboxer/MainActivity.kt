@@ -272,9 +272,21 @@ for numero in range(1, 6):
             .onFailure { projectStatus = "Error al guardar: ${it.message}" }
     }
 
+    fun loadProject() {
+        runCatching { workspace.read(projectFileName) }
+            .onSuccess {
+                projectSource = it
+                projectStatus = "Proyecto cargado: " + projectFileName
+            }
+            .onFailure { projectStatus = "No se pudo abrir: " + it.message }
+    }
+
     fun runProject() {
         coroutineScope.launch {
             try {
+                require(projectFileName.endsWith(".py", ignoreCase = true)) {
+                    "El ejemplo actual se ejecuta con Python; usa un archivo .py"
+                }
                 workspace.save(projectFileName, projectSource)
                 val session = openLinuxShell("alpine")
                 withContext(Dispatchers.IO) {
@@ -453,6 +465,7 @@ for numero in range(1, 6):
                     status = projectStatus,
                     onFileNameChange = { projectFileName = it },
                     onSourceChange = { projectSource = it },
+                    onLoad = { loadProject() },
                     onSave = { saveProject() },
                     onRun = { runProject() },
                 )
@@ -677,6 +690,7 @@ private fun ProgrammingPage(
     status: String,
     onFileNameChange: (String) -> Unit,
     onSourceChange: (String) -> Unit,
+    onLoad: () -> Unit,
     onSave: () -> Unit,
     onRun: () -> Unit,
 ) {
@@ -691,7 +705,7 @@ private fun ProgrammingPage(
             onValueChange = onFileNameChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Archivo del proyecto") },
+            label = { Text("Archivo Python (.py)") },
             shape = RoundedCornerShape(14.dp),
         )
         Card(
@@ -715,8 +729,11 @@ private fun ProgrammingPage(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Button(onClick = onSave) { Text("Guardar proyecto") }
-            Button(onClick = onRun) { Text("▶ Ejecutar en Linux") }
+            Button(onClick = onLoad) { Text("Abrir") }
+            Button(onClick = onSave) { Text("Guardar") }
+        }
+        Button(onClick = onRun, modifier = Modifier.fillMaxWidth()) {
+            Text("▶ Ejecutar en Linux")
         }
         Text(status, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
         SectionCard(

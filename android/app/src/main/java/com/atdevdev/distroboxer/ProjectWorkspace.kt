@@ -16,6 +16,17 @@ class ProjectWorkspace(context: Context) {
         }
     }
 
+    fun read(fileName: String): String {
+        require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
+            "Nombre de archivo no válido"
+        }
+        val target = File(directory, fileName)
+        require(target.isFile && target.canonicalFile.parentFile == directory.canonicalFile) {
+            "El proyecto no existe o la ruta no es válida"
+        }
+        return target.readText(StandardCharsets.UTF_8)
+    }
+
     fun save(fileName: String, source: String): File {
         require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
             "Nombre de archivo no válido"
