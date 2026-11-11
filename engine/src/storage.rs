@@ -310,7 +310,7 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
     }
 
     let release = rootfs.join("etc/os-release");
-    let metadata = fs::symlink_metadata(release)?;
+    let metadata = fs::symlink_metadata(&release)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -320,7 +320,10 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
 
     let release_contents = fs::read_to_string(release)?;
     let expected_id_line = format!("ID={expected_id}");
-    if !release_contents.lines().any(|line| line.trim() == expected_id_line) {
+    if !release_contents
+        .lines()
+        .any(|line| line.trim() == expected_id_line)
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "root filesystem distribution ID does not match the selected profile",
