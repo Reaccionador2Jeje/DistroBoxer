@@ -5,6 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "android")]
+mod android_jni;
+
 pub mod integrity;
 pub mod metadata;
 pub mod storage;
