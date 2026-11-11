@@ -238,7 +238,7 @@ impl StorageManager {
 
             fs::create_dir(&staging)?;
             extract_tar_gz(&archive_path, &staging)?;
-            validate_rootfs_release_file(&staging)?;
+            validate_rootfs_release_file(&staging, id)?;
 
             let rootfs = distro_dir.join("rootfs");
             if fs::symlink_metadata(&rootfs).is_ok() {
@@ -298,7 +298,7 @@ impl StorageManager {
     }
 }
 
-fn validate_rootfs_release_file(rootfs: &Path) -> io::Result<()> {
+fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<()> {
     for path in [rootfs.to_path_buf(), rootfs.join("etc")] {
         let metadata = fs::symlink_metadata(path)?;
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
@@ -315,6 +315,15 @@ fn validate_rootfs_release_file(rootfs: &Path) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "root filesystem is missing a regular etc/os-release file",
+        ));
+    }
+
+    let release_contents = fs::read_to_string(release)?;
+    let expected_id_line = format!("ID={expected_id}");
+    if !release_contents.lines().any(|line| line.trim() == expected_id_line) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "root filesystem distribution ID does not match the selected profile",
         ));
     }
     Ok(())
