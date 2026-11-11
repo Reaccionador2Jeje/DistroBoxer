@@ -20,7 +20,9 @@ pub struct WindowsWsl2Backend {
 impl WindowsWsl2Backend {
     /// Finds wsl.exe in PATH or the Windows system directory.
     pub fn discover() -> io::Result<Self> {
-        Ok(Self { wsl_path: find_wsl_executable()? })
+        Ok(Self {
+            wsl_path: find_wsl_executable()?,
+        })
     }
 
     /// Creates a backend using an explicit wsl.exe path.
@@ -53,11 +55,15 @@ impl WindowsWsl2Backend {
             .args(["--list", "--quiet"])
             .output()?;
         if !output.status.success() {
-            return Err(io::Error::other("WSL could not list registered distributions"));
+            return Err(io::Error::other(
+                "WSL could not list registered distributions",
+            ));
         }
 
         // WSL commonly emits UTF-16LE when stdout is redirected.
-        let utf16: Vec<u16> = output.stdout.chunks_exact(2)
+        let utf16: Vec<u16> = output
+            .stdout
+            .chunks_exact(2)
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
             .collect();
         let listing = String::from_utf16_lossy(&utf16);
@@ -90,8 +96,11 @@ impl WindowsWsl2Backend {
         }
 
         Command::new(&self.wsl_path)
-            .arg("--distribution").arg(name)
-            .arg("--exec").arg("/bin/sh").arg("-l")
+            .arg("--distribution")
+            .arg(name)
+            .arg("--exec")
+            .arg("/bin/sh")
+            .arg("-l")
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
@@ -100,14 +109,17 @@ impl WindowsWsl2Backend {
 }
 
 impl RuntimeBackend for WindowsWsl2Backend {
-    fn kind(&self) -> RuntimeKind { RuntimeKind::WindowsWsl2 }
+    fn kind(&self) -> RuntimeKind {
+        RuntimeKind::WindowsWsl2
+    }
 
     fn status(&self) -> RuntimeStatus {
         if self.is_available() {
             RuntimeStatus {
                 kind: RuntimeKind::WindowsWsl2,
                 state: RuntimeState::AvailableForDetection,
-                message: "WSL responds; DistroBoxer WSL distributions must be imported before launch",
+                message:
+                    "WSL responds; DistroBoxer WSL distributions must be imported before launch",
             }
         } else {
             RuntimeStatus {
@@ -171,7 +183,13 @@ mod tests {
     #[test]
     fn maps_only_catalog_ids_to_wsl_names() {
         assert_eq!(registered_name("debian").unwrap(), "DistroBoxer-debian");
-        assert_eq!(registered_name("../outside").unwrap_err().kind(), io::ErrorKind::InvalidInput);
-        assert_eq!(registered_name("unknown").unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(
+            registered_name("../outside").unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            registered_name("unknown").unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
     }
 }
