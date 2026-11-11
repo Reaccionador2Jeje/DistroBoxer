@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -60,6 +62,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 
@@ -125,6 +128,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val crashReportFile = remember { File(filesDir, "last-crash.txt") }
+            var crashReport by remember {
+                mutableStateOf(crashReportFile.takeIf { it.isFile }?.readText().orEmpty())
+            }
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     primary = Color(0xFF62E6B7),
@@ -138,6 +145,28 @@ class MainActivity : ComponentActivity() {
                 ),
             ) {
                 DistroBoxerScreen()
+                if (crashReport.isNotBlank()) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            crashReportFile.delete()
+                            crashReport = ""
+                        },
+                        title = { Text("Se detectó un cierre inesperado") },
+                        text = {
+                            Text(
+                                crashReport.takeLast(6000),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                crashReportFile.delete()
+                                crashReport = ""
+                            }) { Text("Cerrar informe") }
+                        },
+                    )
+                }
             }
         }
     }
