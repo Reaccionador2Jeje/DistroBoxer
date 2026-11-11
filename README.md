@@ -13,6 +13,7 @@ Current scope:
 - Safe calculation of per-distribution storage paths.
 - Isolated per-distribution storage layout.
 - JSON metadata and installation lifecycle states.
+- SHA-256 verification primitive for downloaded artifacts.
 - Root filesystem validation using the standard `etc/os-release` marker.
 - Architecture and roadmap documentation.
 - CI checks for formatting, compilation, and tests.
