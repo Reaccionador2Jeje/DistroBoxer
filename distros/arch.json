@@ -1,0 +1,11 @@
+{
+  "id": "arch",
+  "name": "Arch Linux",
+  "package_manager": "pacman",
+  "architectures": ["aarch64", "x86_64"],
+  "bootstrap": "official architecture-specific bootstrap tarball",
+  "homepage": "https://archlinux.org/",
+  "status": "planned",
+  "rootfs_source": null,
+  "checksum": null
+}
