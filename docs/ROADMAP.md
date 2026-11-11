@@ -42,7 +42,7 @@
 
 ## 0.6.0 — Android integration
 - [x] Initial Kotlin/Compose application shell
-- [ ] Rust bridge
+- [x] JNI bridge for the Rust distribution catalog
 - [ ] Distribution management screens
 - [ ] Installation progress and error reporting
 
