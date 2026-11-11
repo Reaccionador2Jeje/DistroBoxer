@@ -19,6 +19,7 @@ pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(serde::Serialize)]
 pub struct Distro {
     /// Stable identifier used in configuration and storage paths.
     pub id: &'static str,
@@ -28,6 +29,10 @@ pub struct Distro {
     pub package_manager: &'static str,
     /// Supported Linux userspace architectures.
     pub architectures: &'static [&'static str],
+    /// Official project website.
+    pub homepage: &'static str,
+    /// Bootstrap format or source family; not an assertion that an installer exists.
+    pub bootstrap: &'static str,
 }
 
 /// Initial supported distribution catalog.
@@ -37,18 +42,64 @@ pub const DISTROS: &[Distro] = &[
         name: "Debian",
         package_manager: "apt",
         architectures: &["aarch64", "x86_64"],
+        homepage: "https://www.debian.org/",
+        bootstrap: "OCI root filesystem",
     },
     Distro {
         id: "alpine",
         name: "Alpine Linux",
         package_manager: "apk",
         architectures: &["aarch64", "x86_64"],
+        homepage: "https://alpinelinux.org/",
+        bootstrap: "Official minirootfs tarball",
     },
     Distro {
         id: "ubuntu",
         name: "Ubuntu",
         package_manager: "apt",
         architectures: &["aarch64", "x86_64"],
+        homepage: "https://ubuntu.com/",
+        bootstrap: "OCI root filesystem",
+    },
+    Distro {
+        id: "arch",
+        name: "Arch Linux",
+        package_manager: "pacman",
+        architectures: &["aarch64", "x86_64"],
+        homepage: "https://archlinux.org/",
+        bootstrap: "Official bootstrap tarball (architecture-dependent)",
+    },
+    Distro {
+        id: "fedora",
+        name: "Fedora",
+        package_manager: "dnf",
+        architectures: &["aarch64", "x86_64"],
+        homepage: "https://fedoraproject.org/",
+        bootstrap: "OCI root filesystem",
+    },
+    Distro {
+        id: "opensuse",
+        name: "openSUSE",
+        package_manager: "zypper",
+        architectures: &["aarch64", "x86_64"],
+        homepage: "https://www.opensuse.org/",
+        bootstrap: "OCI root filesystem",
+    },
+    Distro {
+        id: "void",
+        name: "Void Linux",
+        package_manager: "xbps",
+        architectures: &["aarch64", "x86_64"],
+        homepage: "https://voidlinux.org/",
+        bootstrap: "Official rootfs tarball",
+    },
+    Distro {
+        id: "kali",
+        name: "Kali Linux",
+        package_manager: "apt",
+        architectures: &["aarch64", "x86_64"],
+        homepage: "https://www.kali.org/",
+        bootstrap: "OCI root filesystem",
     },
 ];
 
@@ -119,10 +170,15 @@ mod tests {
 
     #[test]
     fn catalog_contains_initial_distributions() {
-        assert_eq!(supported_distros().len(), 3);
+        assert_eq!(supported_distros().len(), 8);
         assert!(is_supported("debian"));
         assert!(is_supported("alpine"));
         assert!(is_supported("ubuntu"));
+        assert!(is_supported("arch"));
+        assert!(is_supported("fedora"));
+        assert!(is_supported("opensuse"));
+        assert!(is_supported("void"));
+        assert!(is_supported("kali"));
         assert!(supports_architecture("debian", "aarch64"));
         assert!(supports_architecture("alpine", "x86_64"));
         assert!(!supports_architecture("ubuntu", "armv7l"));
