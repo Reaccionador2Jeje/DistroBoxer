@@ -3,7 +3,7 @@
 //! This crate currently provides metadata and safe storage-path helpers.
 //! Runtime installation and process execution will be added in later versions.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Metadata for a supported Linux distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,12 +53,12 @@ pub fn is_supported(id: &str) -> bool {
 /// Builds the app-private directory for a supported distribution.
 ///
 /// Unknown identifiers are rejected rather than being used as path input.
-pub fn distro_path(base: impl Into<PathBuf>, id: &str) -> Option<PathBuf> {
-    is_supported(id).then(|| base.into().join("distros").join(id))
+pub fn distro_path(base: impl AsRef<Path>, id: &str) -> Option<PathBuf> {
+    is_supported(id).then(|| base.as_ref().join("distros").join(id))
 }
 
 /// Checks whether the expected root filesystem directory exists.
-pub fn is_installed(base: impl Into<PathBuf>, id: &str) -> bool {
+pub fn is_installed(base: impl AsRef<Path>, id: &str) -> bool {
     distro_path(base, id)
         .map(|path| path.join("rootfs").is_dir())
         .unwrap_or(false)
