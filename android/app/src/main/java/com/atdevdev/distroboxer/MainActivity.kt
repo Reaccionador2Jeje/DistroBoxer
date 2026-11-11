@@ -1,9 +1,13 @@
 package com.atdevdev.distroboxer
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 
@@ -97,6 +102,9 @@ private fun DistroBoxerScreen() {
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
     val storageStates = remember { mutableStateMapOf<String, String>() }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -137,6 +145,32 @@ private fun DistroBoxerScreen() {
                             "Motor nativo no disponible; mostrando catálogo de demostración."
                         },
                     )
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Notificaciones de progreso", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Permite notificaciones para consultar el avance de descargas e instalaciones en segundo plano.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            },
+                        ) {
+                            Text("Activar notificaciones")
+                        }
+                    }
                 }
             }
 
