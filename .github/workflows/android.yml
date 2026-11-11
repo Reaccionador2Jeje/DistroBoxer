@@ -6,6 +6,9 @@ on:
       - "settings.gradle.kts"
       - "build.gradle.kts"
       - "gradle.properties"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "engine/**"
       - "android/**"
       - ".github/workflows/android.yml"
   pull_request:
