@@ -44,7 +44,7 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativePrepareD
     _this: JObject,
     distro_id: JString,
     base_directory: JString,
-) -> jboolean {
+) -> jstring {
     let distro_id: String = match env.get_string(&distro_id) {
         Ok(value) => value.into(),
         Err(_) => return JNI_FALSE,
@@ -110,12 +110,18 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
         Err(_) => return JNI_FALSE,
     };
 
-    match StorageManager::new(base_directory).install_tar_gz(
+    let result = StorageManager::new(base_directory).install_tar_gz(
         &distro_id,
         archive_path,
         &expected_sha256,
-    ) {
-        Ok(()) => JNI_TRUE,
-        Err(_) => JNI_FALSE,
+    );
+    let message = match result {
+        Ok(()) => String::new(),
+        Err(error) => format!("{error:#}"),
+    };
+
+    match env.new_string(message) {
+        Ok(value) => value.into_raw(),
+        Err(_) => std::ptr::null_mut(),
     }
 }
