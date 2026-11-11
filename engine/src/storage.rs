@@ -1,6 +1,7 @@
 //! App-private storage management for Linux distributions.
 
 use crate::metadata::{DistroMetadata, InstallStatus};
+use crate::{installer::extract_tar_gz, verify_sha256};
 use crate::{distro_path, find_distro, is_supported};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -182,6 +183,80 @@ impl StorageManager {
         self.write_metadata(id, &metadata)
     }
 
+    /// Installs a previously downloaded gzip-compressed rootfs tarball.
+    ///
+    /// The archive must be inside this distribution's private downloads directory
+    /// and match the trusted SHA-256 supplied by the caller.
+    pub fn install_tar_gz(
+        &self,
+        id: &str,
+        archive_path: impl AsRef<Path>,
+        expected_sha256: &str,
+    ) -> io::Result<()> {
+        let distro_dir = self.prepare_distro(id)?;
+        let downloads_dir = fs::canonicalize(distro_dir.join("downloads"))?;
+        let archive_path = fs::canonicalize(archive_path)?;
+        if !archive_path.starts_with(&downloads_dir) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "archive must be inside the distribution's private downloads directory",
+            ));
+        }
+        if !verify_sha256(&archive_path, expected_sha256)? {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem archive SHA-256 verification failed",
+            ));
+        }
+
+        self.set_status(id, InstallStatus::NotInstalled, None)?;
+        self.transition_status(id, InstallStatus::Preparing, None)?;
+        self.transition_status(id, InstallStatus::Downloading, None)?;
+        self.transition_status(id, InstallStatus::Extracting, None)?;
+
+        let staging = distro_dir.join(".rootfs-staging");
+        let backup = distro_dir.join(".rootfs-backup");
+
+        let result = (|| {
+            remove_real_directory_if_present(&staging)?;
+            if fs::symlink_metadata(&backup).is_ok() {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "rootfs backup exists; manual recovery is required",
+                ));
+            }
+
+            fs::create_dir(&staging)?;
+            extract_tar_gz(&archive_path, &staging)?;
+            validate_rootfs_release_file(&staging)?;
+
+            let rootfs = distro_dir.join("rootfs");
+            if fs::symlink_metadata(&rootfs).is_ok() {
+                ensure_real_directory(&rootfs)?;
+                fs::rename(&rootfs, &backup)?;
+            }
+
+            if let Err(error) = fs::rename(&staging, &rootfs) {
+                if fs::symlink_metadata(&backup).is_ok() {
+                    let _ = fs::rename(&backup, &rootfs);
+                }
+                return Err(error);
+            }
+
+            remove_real_directory_if_present(&backup)?;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => self.transition_status(id, InstallStatus::Installed, None),
+            Err(error) => {
+                let _ = remove_real_directory_if_present(&staging);
+                let _ = self.set_status(id, InstallStatus::Failed, Some(error.to_string()));
+                Err(error)
+            }
+        }
+    }
+
     /// Checks for a real rootfs directory, rejecting a symlink at that location.
     pub fn is_installed(&self, id: &str) -> io::Result<bool> {
         let rootfs = self.distro_dir(id)?.join("rootfs");
@@ -202,6 +277,42 @@ impl StorageManager {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         }
+    }
+}
+
+fn validate_rootfs_release_file(rootfs: &Path) -> io::Result<()> {
+    for path in [rootfs.to_path_buf(), rootfs.join("etc")] {
+        let metadata = fs::symlink_metadata(path)?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem contains an invalid etc directory",
+            ));
+        }
+    }
+
+    let release = rootfs.join("etc/os-release");
+    let metadata = fs::symlink_metadata(release)?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "root filesystem is missing a regular etc/os-release file",
+        ));
+    }
+    Ok(())
+}
+
+fn remove_real_directory_if_present(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            fs::remove_dir_all(path)
+        }
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "refusing to remove a non-directory or symbolic link",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
