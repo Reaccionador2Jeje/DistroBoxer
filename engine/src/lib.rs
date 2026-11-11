@@ -22,6 +22,8 @@ pub use runtime::{
 };
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 pub use runtime::{find_proot_executable, LinuxProotBackend};
+#[cfg(target_os = "windows")]
+pub use runtime::{find_wsl_executable, WindowsWsl2Backend};
 pub use storage::StorageManager;
 
 /// Metadata for a supported Linux distribution.
