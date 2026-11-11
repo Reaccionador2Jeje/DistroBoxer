@@ -488,7 +488,7 @@ private fun DesktopPage(prootAvailable: Boolean, x11Available: Boolean) {
                 )
                 Spacer(Modifier.height(9.dp))
                 Text(
-                    "PRoot: " + if (prootAvailable) "disponible" else "pendiente" + " · X11: " + if (x11Available) "disponible" else "pendiente",
+                    "PRoot: " + (if (prootAvailable) "disponible" else "pendiente") + " · X11: " + (if (x11Available) "disponible" else "pendiente"),
                     color = Color(0xFFFFC078),
                     fontWeight = FontWeight.SemiBold,
                 )
