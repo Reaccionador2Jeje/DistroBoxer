@@ -10,9 +10,11 @@
 - [ ] Android app shell
 
 ## 0.2.0 — Storage and metadata
-- [ ] Per-distro metadata model
-- [ ] Safe directory creation
-- [ ] Installation state machine
+- [x] Per-distro metadata model
+- [x] Safe directory creation with symlink rejection
+- [x] Installation lifecycle state model
+- [x] Metadata persistence with atomic file replacement
+- [x] Rootfs presence validation
 - [ ] Storage usage reporting
 
 ## 0.3.0 — Root filesystem installation
