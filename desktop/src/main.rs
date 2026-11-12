@@ -410,40 +410,54 @@ fn install_distribution(distro_id: String) -> Result<String, String> {
     let manager = distroboxer::StorageManager::new(&storage);
     let distro_dir = manager.prepare_distro(&distro_id)
         .map_err(|error| format!("No se pudo preparar el almacenamiento: {error}"))?;
-    let archive_path = distro_dir.join("downloads").join(file_name);
-    let client = download_client()?;
-    let expected_hash = expected_archive_sha256(&client, checksum_url, file_name)?;
-    download_verified_archive(&client, source_url, &archive_path, &expected_hash)?;
 
-    #[cfg(target_os = "linux")]
-    {
-        manager.install_archive_with_progress(
+    // Keep failures visible in metadata even when they happen before extraction
+    // (for example, a checksum endpoint or regional mirror is unavailable).
+    let install_result = (|| -> Result<String, String> {
+        let archive_path = distro_dir.join("downloads").join(file_name);
+        let client = download_client()?;
+        let expected_hash = expected_archive_sha256(&client, checksum_url, file_name)?;
+        download_verified_archive(&client, source_url, &archive_path, &expected_hash)?;
+
+        #[cfg(target_os = "linux")]
+        {
+            manager.install_archive_with_progress(
+                &distro_id,
+                &archive_path,
+                &manifest.archive_format,
+                &expected_hash,
+                |_| {},
+            ).map_err(|error| format!("Falló la instalación de {}: {error}", distro.name))?;
+            Ok(format!("{} instalada correctamente.", distro.name))
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let tar_path = distro_dir.join("downloads").join(format!("{distro_id}-wsl-import.tar"));
+            decompress_archive_to_tar(&archive_path, &manifest.archive_format, &tar_path)?;
+            let install_location = storage.join("wsl").join(format!("DistroBoxer-{distro_id}"));
+            let backend = distroboxer::WindowsWsl2Backend::discover()
+                .map_err(|error| format!("No se pudo localizar WSL: {error}"))?;
+            backend.import_rootfs_tarball(&distro_id, install_location, &tar_path)
+                .map_err(|error| format!("Falló la importación a WSL2: {error}"))?;
+            Ok(format!("{} importada en WSL2 correctamente.", distro.name))
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = (manager, archive_path, expected_hash);
+            Err("La descarga está preparada, pero macOS necesita el adaptador de máquina virtual Virtualization.framework antes de poder instalar y arrancar una distribución.".into())
+        }
+    })();
+
+    if let Err(error) = &install_result {
+        let _ = manager.set_status(
             &distro_id,
-            &archive_path,
-            &manifest.archive_format,
-            &expected_hash,
-            |_| {},
-        ).map_err(|error| format!("Falló la instalación de {}: {error}", distro.name))?;
-        Ok(format!("{} instalada correctamente.", distro.name))
+            distroboxer::InstallStatus::Failed,
+            Some(error.clone()),
+        );
     }
-
-    #[cfg(target_os = "windows")]
-    {
-        let tar_path = distro_dir.join("downloads").join(format!("{distro_id}-wsl-import.tar"));
-        decompress_archive_to_tar(&archive_path, &manifest.archive_format, &tar_path)?;
-        let install_location = storage.join("wsl").join(format!("DistroBoxer-{distro_id}"));
-        let backend = distroboxer::WindowsWsl2Backend::discover()
-            .map_err(|error| format!("No se pudo localizar WSL: {error}"))?;
-        backend.import_rootfs_tarball(&distro_id, install_location, &tar_path)
-            .map_err(|error| format!("Falló la importación a WSL2: {error}"))?;
-        Ok(format!("{} importada en WSL2 correctamente.", distro.name))
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let _ = (manager, archive_path, expected_hash);
-        Err("La descarga está preparada, pero macOS necesita el adaptador de máquina virtual Virtualization.framework antes de poder instalar y arrancar una distribución.".into())
-    }
+    install_result
 }
 
 fn main() {
