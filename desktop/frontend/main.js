@@ -44,10 +44,28 @@ function renderDistro(distro) {
   link.target = "_blank";
   link.rel = "noreferrer";
   link.textContent = "Sitio oficial ↗";
+  const installButton = document.createElement("button");
+  installButton.className = "primary-button";
+  installButton.type = "button";
+  installButton.textContent = "Instalar distribución";
   const badge = document.createElement("span");
   badge.className = "status";
-  badge.textContent = distro.id === "alpine" ? "INSTALADOR ANDROID EN PRUEBAS" : "PERFIL · INSTALADOR PENDIENTE";
-  card.append(title, id, details, bootstrap, link, badge);
+  badge.textContent = "INSTALADOR CON VERIFICACIÓN SHA-256";
+  installButton.addEventListener("click", async () => {
+    installButton.disabled = true;
+    badge.textContent = "DESCARGANDO E INSTALANDO…";
+    try {
+      const result = await window.__TAURI__.core.invoke("install_distribution", {
+        distroId: distro.id
+      });
+      badge.textContent = result.toUpperCase();
+    } catch (error) {
+      badge.textContent = "ERROR: " + String(error);
+    } finally {
+      installButton.disabled = false;
+    }
+  });
+  card.append(title, id, details, bootstrap, link, installButton, badge);
   return card;
 }
 
