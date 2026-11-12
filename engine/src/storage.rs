@@ -216,12 +216,6 @@ impl StorageManager {
         expected_sha256: &str,
         mut progress: impl FnMut(String),
     ) -> io::Result<()> {
-        &self,
-        id: &str,
-        archive_path: impl AsRef<Path>,
-        expected_sha256: &str,
-        mut progress: impl FnMut(String),
-    ) -> io::Result<()> {
         let distro = find_distro(id).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
