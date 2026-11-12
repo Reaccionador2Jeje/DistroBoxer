@@ -138,7 +138,6 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
     }
 }
 
-
 /// Verifies and installs a rootfs archive using its declared compression format.
 #[no_mangle]
 pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallArchive(
