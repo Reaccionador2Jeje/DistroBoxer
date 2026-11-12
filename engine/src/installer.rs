@@ -22,6 +22,18 @@ pub fn extract_tar_gz(
 pub fn extract_tar_gz_with_progress(
     archive_path: impl AsRef<Path>,
     destination: impl AsRef<Path>,
+    progress: impl FnMut(String),
+) -> io::Result<()> {
+    extract_archive_with_progress(archive_path, "tar.gz", destination, progress)
+}
+
+/// Extracts supported rootfs archive formats after the caller verifies the digest.
+///
+/// Supported formats: tar.gz, tar.xz, tar.zst and uncompressed tar.
+pub fn extract_archive_with_progress(
+    archive_path: impl AsRef<Path>,
+    format: &str,
+    destination: impl AsRef<Path>,
     mut progress: impl FnMut(String),
 ) -> io::Result<()> {
     let archive_path = archive_path.as_ref();
@@ -34,7 +46,20 @@ pub fn extract_tar_gz_with_progress(
     }
 
     let file = File::open(archive_path)?;
-    extract_tar_with_progress(GzDecoder::new(file), destination, &mut progress)
+    match format {
+        "tar.gz" => extract_tar_with_progress(GzDecoder::new(file), destination, &mut progress),
+        "tar.xz" => extract_tar_with_progress(xz2::read::XzDecoder::new(file), destination, &mut progress),
+        "tar.zst" => {
+            let decoder = zstd::stream::read::Decoder::new(file)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            extract_tar_with_progress(decoder, destination, &mut progress)
+        }
+        "tar" => extract_tar_with_progress(file, destination, &mut progress),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!("unsupported rootfs archive format: {format}"),
+        )),
+    }
 }
 
 /// Extracts an uncompressed tar stream after validating every path and link.
