@@ -1,0 +1,14 @@
+{
+  "id": "void",
+  "version": "current",
+  "provider": "Linux Containers image server",
+  "archive_format": "tar.xz",
+  "rootfs_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/voidlinux/current/arm64/default/20261110_17:10/rootfs.tar.xz",
+    "x86_64": "https://images.linuxcontainers.org/images/voidlinux/current/amd64/default/20261110_17:10/rootfs.tar.xz"
+  },
+  "checksum_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/voidlinux/current/arm64/default/20261110_17:10/SHA256SUMS",
+    "x86_64": "https://images.linuxcontainers.org/images/voidlinux/current/amd64/default/20261110_17:10/SHA256SUMS"
+  }
+}
