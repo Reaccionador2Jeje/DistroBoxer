@@ -1,0 +1,14 @@
+{
+  "id": "arch",
+  "version": "current",
+  "provider": "Linux Containers image server",
+  "archive_format": "tar.xz",
+  "rootfs_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/archlinux/current/arm64/default/20261111_04:18/rootfs.tar.xz",
+    "x86_64": "https://images.linuxcontainers.org/images/archlinux/current/amd64/default/20261111_04:50/rootfs.tar.xz"
+  },
+  "checksum_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/archlinux/current/arm64/default/20261111_04:18/SHA256SUMS",
+    "x86_64": "https://images.linuxcontainers.org/images/archlinux/current/amd64/default/20261111_04:50/SHA256SUMS"
+  }
+}
