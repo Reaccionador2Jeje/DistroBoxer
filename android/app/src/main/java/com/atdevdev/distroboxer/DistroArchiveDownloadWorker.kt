@@ -158,55 +158,76 @@ class DistroArchiveDownloadWorker(
 
     private suspend fun fetchExpectedSha256(checksumUrl: String, fileName: String): String =
         withContext(Dispatchers.IO) {
-            val connection = URL(checksumUrl).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = CONNECT_TIMEOUT_MS
-                connection.readTimeout = READ_TIMEOUT_MS
-                connection.instanceFollowRedirects = false
-                connection.setRequestProperty("User-Agent", "DistroBoxer/0.3")
-                require(connection.responseCode == HttpURLConnection.HTTP_OK) {
-                    "Checksum manifest request failed"
-                }
-
-                val body = ByteArrayOutputStream()
-                connection.inputStream.use { input ->
-                    val buffer = ByteArray(512)
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        require(body.size() + count <= MAX_CHECKSUM_BYTES) {
-                            "Checksum manifest is unexpectedly large"
-                        }
-                        body.write(buffer, 0, count)
+            val manifestHash = runCatching {
+                val connection = URL(checksumUrl).openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
+                    connection.instanceFollowRedirects = false
+                    connection.setRequestProperty("User-Agent", "DistroBoxer/0.3")
+                    require(connection.responseCode == HttpURLConnection.HTTP_OK) {
+                        "Checksum manifest request failed"
                     }
-                }
 
-                val lines = body.toString(Charsets.US_ASCII.name())
-                    .lineSequence()
-                    .filter { it.isNotBlank() }
-                    .toList()
-                require(lines.isNotEmpty()) { "Checksum manifest is empty" }
-                val hash = lines.asSequence()
-                    .mapNotNull { line ->
-                        CHECKSUM_LINE.matchEntire(line.trim())?.let { parsed ->
-                            val listedFile = parsed.groupValues.getOrNull(2).orEmpty()
-                                .trim()
-                                .removePrefix("*")
-                                .substringAfterLast('/')
-                            parsed.groupValues[1].takeIf { listedFile == fileName }
+                    val body = ByteArrayOutputStream()
+                    connection.inputStream.use { input ->
+                        val buffer = ByteArray(512)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            require(body.size() + count <= MAX_CHECKSUM_BYTES) {
+                                "Checksum manifest is unexpectedly large"
+                            }
+                            body.write(buffer, 0, count)
                         }
                     }
-                    .firstOrNull()
-                    ?: lines.asSequence()
-                        .mapNotNull { CHECKSUM_LINE.matchEntire(it.trim()) }
-                        .firstOrNull { it.groupValues.getOrNull(2).orEmpty().isBlank() }
-                        ?.groupValues?.get(1)
-                    ?: error("Checksum manifest does not contain $fileName")
-                hash.lowercase()
-            } finally {
-                connection.disconnect()
-            }
+
+                    val lines = body.toString(Charsets.US_ASCII.name())
+                        .lineSequence()
+                        .filter { it.isNotBlank() }
+                        .toList()
+                    lines.asSequence()
+                        .mapNotNull { line ->
+                            CHECKSUM_LINE.matchEntire(line.trim())?.let { parsed ->
+                                val listedFile = parsed.groupValues.getOrNull(2).orEmpty()
+                                    .trim()
+                                    .removePrefix("*")
+                                    .substringAfterLast('/')
+                                parsed.groupValues[1].takeIf { listedFile == fileName }
+                            }
+                        }
+                        .firstOrNull()
+                        ?: lines.asSequence()
+                            .mapNotNull { CHECKSUM_LINE.matchEntire(it.trim()) }
+                            .firstOrNull { it.groupValues.getOrNull(2).orEmpty().isBlank() }
+                            ?.groupValues?.get(1)
+                } finally {
+                    connection.disconnect()
+                }
+            }.getOrNull()
+
+            manifestHash?.lowercase() ?: fetchSidecarSha256(checksumUrl, fileName)
         }
+
+    /** Supports mirrors that publish a per-archive .sha256 file instead of SHA256SUMS. */
+    private fun fetchSidecarSha256(checksumUrl: String, fileName: String): String {
+        val sidecarUrl = checksumUrl.removeSuffix("SHA256SUMS") + "$fileName.sha256"
+        val connection = URL(sidecarUrl).openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
+            connection.instanceFollowRedirects = false
+            connection.setRequestProperty("User-Agent", "DistroBoxer/0.3")
+            require(connection.responseCode == HttpURLConnection.HTTP_OK) {
+                "No se encontró SHA-256 para $fileName: falló SHA256SUMS y tampoco existe el archivo .sha256."
+            }
+            val text = connection.inputStream.bufferedReader(Charsets.US_ASCII).use { it.readText() }
+            return Regex("""(?i)\\b([a-f0-9]{64})\\b""").find(text)?.groupValues?.get(1)?.lowercase()
+                ?: error("El archivo .sha256 de $fileName no contiene un hash válido.")
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun isTrustedSource(value: String): Boolean {
         val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
