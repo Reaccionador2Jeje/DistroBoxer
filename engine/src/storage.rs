@@ -233,7 +233,7 @@ impl StorageManager {
         }
         if distro.archive_format != archive_format {
             return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
+                io::ErrorKind::Unsupported,
                 format!("distribution '{id}' expects '{}' archives, not '{archive_format}'", distro.archive_format),
             ));
         }
