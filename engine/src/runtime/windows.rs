@@ -81,6 +81,74 @@ impl WindowsWsl2Backend {
         Ok(result)
     }
 
+    /// Imports a verified rootfs tar archive as a dedicated WSL 2 distribution.
+    ///
+    /// The destination must be an empty directory. Existing distributions are
+    /// never unregistered or overwritten automatically.
+    pub fn import_rootfs_tarball(
+        &self,
+        distro_id: &str,
+        install_location: impl AsRef<Path>,
+        tarball: impl AsRef<Path>,
+    ) -> io::Result<()> {
+        let name = registered_name(distro_id)?;
+        if !self.is_available() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "WSL2 is not available; initialize WSL before importing a distribution",
+            ));
+        }
+        if self.registered_distributions()?.iter().any(|id| id == distro_id) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("WSL distribution '{name}' is already registered"),
+            ));
+        }
+
+        let tarball = tarball.as_ref();
+        let archive_metadata = fs::metadata(tarball)?;
+        if !archive_metadata.is_file() || archive_metadata.len() == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "WSL import requires a non-empty regular tar archive",
+            ));
+        }
+
+        let install_location = install_location.as_ref();
+        fs::create_dir_all(install_location)?;
+        if fs::read_dir(install_location)?.next().is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "WSL installation directory must be empty",
+            ));
+        }
+
+        let output = Command::new(&self.wsl_path)
+            .arg("--import")
+            .arg(&name)
+            .arg(install_location)
+            .arg(tarball)
+            .arg("--version")
+            .arg("2")
+            .output()?;
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            return Err(io::Error::other(if detail.is_empty() {
+                "WSL failed to import the Linux root filesystem".to_owned()
+            } else {
+                detail
+            }));
+        }
+
+        if !self.registered_distributions()?.iter().any(|id| id == distro_id) {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "WSL import returned success but the distribution was not registered",
+            ));
+        }
+        Ok(())
+    }
+
     /// Starts a login shell in an already imported DistroBoxer WSL distribution.
     ///
     /// The distribution must be registered as DistroBoxer-<catalog-id>.
