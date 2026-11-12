@@ -524,27 +524,25 @@ for numero in range(1, 6):
                                         Build.SUPPORTED_ABIS.contains("x86_64") -> "x86_64"
                                         else -> null
                                     }
-                                    if (distro.id != "alpine") {
-                                        storageStates[distro.id] = "El instalador de esta distro todavía está en desarrollo."
-                                    } else if (linuxArch == null) {
+                                    if (linuxArch == null) {
                                         storageStates[distro.id] = "Arquitectura no compatible."
                                     } else {
                                         runCatching {
-                                            val manifest = context.assets.open("distro-manifests/alpine.json")
+                                            val manifest = context.assets.open("distro-manifests/${distro.id}.json")
                                                 .bufferedReader().use { JSONObject(it.readText()) }
+                                            val archiveFormat = manifest.getString("archive_format")
                                             val sourceUrl = manifest.getJSONObject("rootfs_source").getString(linuxArch)
                                             val checksumUrl = manifest.getJSONObject("checksum_source").getString(linuxArch)
                                             val fileName = Uri.parse(sourceUrl).lastPathSegment ?: error("Archivo inválido")
                                             DistroDownloadScheduler.enqueueWithChecksumManifest(
-                                                context, distro.id, sourceUrl, checksumUrl, fileName,
+                                                context, distro.id, sourceUrl, checksumUrl, fileName, archiveFormat,
                                             )
                                         }.onSuccess {
                                             storageStates[distro.id] = "Descarga e instalación iniciadas en segundo plano."
                                         }.onFailure { error ->
                                             storageStates[distro.id] = "No se pudo iniciar: ${error.message}"
                                         }
-                                    }
-                                },
+                                    }                                },
                             )
                         }
                     }
