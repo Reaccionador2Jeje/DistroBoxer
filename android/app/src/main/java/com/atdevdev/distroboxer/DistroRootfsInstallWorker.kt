@@ -24,8 +24,10 @@ class DistroRootfsInstallWorker(
         val distroId = inputData.getString(DistroArchiveDownloadWorker.KEY_DISTRO_ID).orEmpty()
         val archivePath = inputData.getString(DistroArchiveDownloadWorker.KEY_ARCHIVE_PATH).orEmpty()
         val expectedHash = inputData.getString(DistroArchiveDownloadWorker.KEY_SHA256).orEmpty()
+        val archiveFormat = inputData.getString(DistroArchiveDownloadWorker.KEY_ARCHIVE_FORMAT).orEmpty()
 
-        if (distroId.isBlank() || archivePath.isBlank() || expectedHash.isBlank()) {
+        if (distroId.isBlank() || archivePath.isBlank() || expectedHash.isBlank() ||
+            archiveFormat !in setOf("tar.gz", "tar.xz", "tar.zst", "tar")) {
             return Result.failure(workDataOf(DistroArchiveDownloadWorker.KEY_ERROR to "Missing verified archive details"))
         }
 
@@ -34,10 +36,11 @@ class DistroRootfsInstallWorker(
 
         return try {
             val installError = withContext(Dispatchers.IO) {
-                NativeBridge.nativeInstallTarGz(
+                NativeBridge.nativeInstallArchive(
                     distroId,
                     applicationContext.filesDir.absolutePath,
                     archivePath,
+                    archiveFormat,
                     expectedHash,
                     object : NativeInstallListener {
                         override fun onInstallLog(message: String) {
