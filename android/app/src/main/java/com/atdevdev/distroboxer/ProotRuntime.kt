@@ -3,6 +3,7 @@ package com.atdevdev.distroboxer
 import android.content.Context
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 
 /**
@@ -17,7 +18,21 @@ class ProotRuntime(context: Context) {
 
     @Synchronized
     fun isRuntimeAvailable(): Boolean {
-        return isSafeRegularFile(prootFile) && prootFile.canExecute()
+        if (!isSafeRegularFile(prootFile)) return false
+        return prootFile.canExecute() || runCatching {
+            prootFile.setExecutable(true, false) && prootFile.canExecute()
+        }.getOrDefault(false)
+    }
+
+    private fun ensureProotExecutable() {
+        check(isSafeRegularFile(prootFile)) {
+            "No se encontró el binario PRoot en ${prootFile.absolutePath}."
+        }
+        if (!prootFile.canExecute()) {
+            check(prootFile.setExecutable(true, false) && prootFile.canExecute()) {
+                "Android encontró PRoot, pero no permite marcarlo como ejecutable: ${prootFile.absolutePath}"
+            }
+        }
     }
 
     /**
@@ -30,9 +45,7 @@ class ProotRuntime(context: Context) {
         require(abi == "arm64-v8a" || abi == "x86_64") {
             "Arquitectura Android no compatible con PRoot: $abi"
         }
-        check(isRuntimeAvailable()) {
-            "Android no extrajo PRoot en el directorio de bibliotecas nativas."
-        }
+        ensureProotExecutable()
     }
 
     /**
@@ -42,7 +55,7 @@ class ProotRuntime(context: Context) {
     @Synchronized
     fun startShell(distroId: String, display: String? = null): Process {
         require(activeProcess?.isAlive != true) { "Ya existe una sesión Linux activa" }
-        require(isRuntimeAvailable()) { "El ejecutable PRoot todavía no está instalado" }
+        ensureProotExecutable()
 
         val rootfs = resolveRootfs(distroId)
         // PRoot crea archivos auxiliares en este directorio del host Android.
@@ -78,17 +91,27 @@ class ProotRuntime(context: Context) {
         }
         command += listOf("/bin/sh", "-i")
 
-        val process = ProcessBuilder(command)
-            .directory(rootfs)
-            .redirectErrorStream(true)
-            .apply {
-                environment().clear()
-                environment()["HOME"] = appContext.filesDir.absolutePath
-                environment()["TMPDIR"] = prootTempDirectory.absolutePath
-                environment()["PROOT_TMP_DIR"] = prootTempDirectory.absolutePath
-                environment()["PATH"] = "/system/bin:/system/xbin"
-            }
-            .start()
+        val process = try {
+            ProcessBuilder(command)
+                .directory(rootfs)
+                .redirectErrorStream(true)
+                .apply {
+                    environment().clear()
+                    environment()["HOME"] = appContext.filesDir.absolutePath
+                    environment()["TMPDIR"] = prootTempDirectory.absolutePath
+                    environment()["PROOT_TMP_DIR"] = prootTempDirectory.absolutePath
+                    environment()["PATH"] = "/system/bin:/system/xbin"
+                }
+                .start()
+        } catch (error: IOException) {
+            throw IllegalStateException(
+                "Android rechazó el inicio de PRoot. Binario: ${prootFile.absolutePath}; " +
+                    "existe=${prootFile.exists()}, ejecutable=${prootFile.canExecute()}, " +
+                    "temporal=${prootTempDirectory.absolutePath}, temporalEscribible=${prootTempDirectory.canWrite()}. " +
+                    "Detalle: ${error.message}",
+                error,
+            )
+        }
 
         activeProcess = process
         return process
@@ -213,8 +236,10 @@ class ProotRuntime(context: Context) {
         ) {
             "La distribución no contiene un etc/os-release válido dentro de rootfs"
         }
-        require(File(rootfs, "bin/sh").exists() || File(rootfs, "usr/bin/sh").exists()) {
-            "La distribución no contiene un shell"
+        val shell = listOf(File(rootfs, "bin/sh"), File(rootfs, "usr/bin/sh"))
+            .firstOrNull { it.exists() && it.canExecute() }
+        require(shell != null) {
+            "El rootfs no contiene un shell ejecutable. La extracción debe conservar los permisos Unix de /bin/sh."
         }
         return rootfs
     }
