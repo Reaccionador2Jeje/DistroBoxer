@@ -53,8 +53,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "apt",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.debian.org/",
-        bootstrap: "OCI root filesystem",
-        archive_format: "oci",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "alpine",
@@ -71,8 +71,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "apt",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://ubuntu.com/",
-        bootstrap: "OCI root filesystem",
-        archive_format: "oci",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "arch",
@@ -80,8 +80,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "pacman",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://archlinux.org/",
-        bootstrap: "Official bootstrap tarball (architecture-dependent)",
-        archive_format: "tar.zst",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "fedora",
@@ -89,8 +89,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "dnf",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://fedoraproject.org/",
-        bootstrap: "OCI root filesystem",
-        archive_format: "oci",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "opensuse",
@@ -98,8 +98,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "zypper",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.opensuse.org/",
-        bootstrap: "OCI root filesystem",
-        archive_format: "oci",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
     Distro {
         id: "void",
@@ -107,7 +107,7 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "xbps",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://voidlinux.org/",
-        bootstrap: "Official rootfs tarball",
+        bootstrap: "Linux Containers rootfs tarball",
         archive_format: "tar.xz",
     },
     Distro {
@@ -116,8 +116,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "apt",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.kali.org/",
-        bootstrap: "OCI root filesystem",
-        archive_format: "oci",
+        bootstrap: "Linux Containers rootfs tarball",
+        archive_format: "tar.xz",
     },
 ];
 
