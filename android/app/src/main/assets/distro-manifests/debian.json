@@ -1,0 +1,14 @@
+{
+  "id": "debian",
+  "version": "trixie",
+  "provider": "Linux Containers image server",
+  "archive_format": "tar.xz",
+  "rootfs_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/debian/trixie/arm64/default/20261111_05:24/rootfs.tar.xz",
+    "x86_64": "https://images.linuxcontainers.org/images/debian/trixie/amd64/default/20261111_05:24/rootfs.tar.xz"
+  },
+  "checksum_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/debian/trixie/arm64/default/20261111_05:24/SHA256SUMS",
+    "x86_64": "https://images.linuxcontainers.org/images/debian/trixie/amd64/default/20261111_05:24/SHA256SUMS"
+  }
+}
