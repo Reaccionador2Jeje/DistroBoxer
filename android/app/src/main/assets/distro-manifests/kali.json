@@ -1,0 +1,14 @@
+{
+  "id": "kali",
+  "version": "current",
+  "provider": "Linux Containers image server",
+  "archive_format": "tar.xz",
+  "rootfs_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/kali/current/arm64/default/20261110_17:14/rootfs.tar.xz",
+    "x86_64": "https://images.linuxcontainers.org/images/kali/current/amd64/default/20261110_17:14/rootfs.tar.xz"
+  },
+  "checksum_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/kali/current/arm64/default/20261110_17:14/SHA256SUMS",
+    "x86_64": "https://images.linuxcontainers.org/images/kali/current/amd64/default/20261110_17:14/SHA256SUMS"
+  }
+}
