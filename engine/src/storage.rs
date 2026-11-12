@@ -202,15 +202,39 @@ impl StorageManager {
         id: &str,
         archive_path: impl AsRef<Path>,
         expected_sha256: &str,
+        progress: impl FnMut(String),
+    ) -> io::Result<()> {
+        self.install_archive_with_progress(id, archive_path, "tar.gz", expected_sha256, progress)
+    }
+
+    /// Installs a verified rootfs archive in a supported compression format.
+    pub fn install_archive_with_progress(
+        &self,
+        id: &str,
+        archive_path: impl AsRef<Path>,
+        archive_format: &str,
+        expected_sha256: &str,
+        mut progress: impl FnMut(String),
+    ) -> io::Result<()> {
+        &self,
+        id: &str,
+        archive_path: impl AsRef<Path>,
+        expected_sha256: &str,
         mut progress: impl FnMut(String),
     ) -> io::Result<()> {
         let distro = find_distro(id).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
-        if distro.archive_format != "tar.gz" {
+        if !matches!(archive_format, "tar.gz" | "tar.xz" | "tar.zst" | "tar") {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
-                "this distribution requires a different bootstrap format",
+                format!("unsupported rootfs archive format: {archive_format}"),
+            ));
+        }
+        if distro.archive_format != archive_format {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("distribution '{id}' expects '{}' archives, not '{archive_format}'", distro.archive_format),
             ));
         }
 
@@ -251,9 +275,12 @@ impl StorageManager {
 
             fs::create_dir(&staging)?;
             progress("Iniciando extracción del sistema Linux…".to_owned());
-            crate::installer::extract_tar_gz_with_progress(&archive_path, &staging, |line| {
-                progress(line)
-            })?;
+            crate::installer::extract_archive_with_progress(
+                &archive_path,
+                archive_format,
+                &staging,
+                |line| progress(line),
+            )?;
             progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
