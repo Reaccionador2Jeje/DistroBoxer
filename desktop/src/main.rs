@@ -243,10 +243,17 @@ fn is_trusted_download_url(url: &reqwest::Url) -> bool {
     if url.scheme() != "https" {
         return false;
     }
-    matches!(
-        url.host_str(),
-        Some("dl-cdn.alpinelinux.org") | Some("images.linuxcontainers.org")
-    )
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    // The Linux Containers image server redirects downloads to regional
+    // mirrors such as ca.images.linuxcontainers.org. Accept only the official
+    // image-server hostname and its subdomains, never lookalike suffixes.
+    host == "dl-cdn.alpinelinux.org"
+        || host == "images.linuxcontainers.org"
+        || host.ends_with(".images.linuxcontainers.org")
 }
 
 fn download_client() -> Result<reqwest::blocking::Client, String> {
@@ -452,4 +459,33 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run DistroBoxer Desktop");
+}
+ 
+#[cfg(test)]
+mod download_url_tests {
+    use super::*;
+
+    #[test]
+    fn trusts_official_image_server_mirrors_only_over_https() {
+        for value in [
+            "https://images.linuxcontainers.org/rootfs.tar.xz",
+            "https://ca.images.linuxcontainers.org/rootfs.tar.xz",
+            "https://us.images.linuxcontainers.org/rootfs.tar.xz",
+            "https://dl-cdn.alpinelinux.org/rootfs.tar.gz",
+        ] {
+            assert!(is_trusted_download_url(&reqwest::Url::parse(value).unwrap()), "{value}");
+        }
+    }
+
+    #[test]
+    fn rejects_lookalike_mirrors_and_plain_http() {
+        for value in [
+            "https://images.linuxcontainers.org.evil.example/rootfs.tar.xz",
+            "https://evilimages.linuxcontainers.org/rootfs.tar.xz",
+            "http://ca.images.linuxcontainers.org/rootfs.tar.xz",
+            "https://example.com/rootfs.tar.xz",
+        ] {
+            assert!(!is_trusted_download_url(&reqwest::Url::parse(value).unwrap()), "{value}");
+        }
+    }
 }
