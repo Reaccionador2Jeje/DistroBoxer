@@ -211,7 +211,11 @@ class DistroArchiveDownloadWorker(
 
     /** Supports mirrors that publish a per-archive .sha256 file instead of SHA256SUMS. */
     private fun fetchSidecarSha256(checksumUrl: String, fileName: String): String {
-        val sidecarUrl = checksumUrl.removeSuffix("SHA256SUMS") + "$fileName.sha256"
+        val sidecarUrl = if (checksumUrl.endsWith("$fileName.sha256")) {
+            checksumUrl
+        } else {
+            checksumUrl.removeSuffix("SHA256SUMS") + "$fileName.sha256"
+        }
         val connection = URL(sidecarUrl).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = CONNECT_TIMEOUT_MS
