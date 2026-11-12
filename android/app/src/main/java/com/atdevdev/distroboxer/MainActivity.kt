@@ -662,7 +662,7 @@ private fun HomePage(
                 detail = if (installedCount > 0) {
                     "Abre cualquiera de tus distribuciones instaladas y ejecuta comandos Linux."
                 } else {
-                    "Instala Alpine desde Distros. Después podrás abrir su shell PRoot desde aquí."
+                    "Instala una distribución desde Distros. Después podrás abrir su shell PRoot desde aquí."
                 },
                 good = installedCount > 0,
             )
@@ -734,7 +734,7 @@ private fun DistroCard(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar") }
-                if (distro.id == "alpine" && !installed) {
+                if (!installed) {
                     Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
                 }
                 if (installed) {
@@ -745,8 +745,12 @@ private fun DistroCard(
                 Spacer(Modifier.height(8.dp))
                 Text(storageStatus, color = if (installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
             }
-            if (distro.id != "alpine" && !installed) {
-                Text("El instalador Android está disponible actualmente para Alpine.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+            if (!installed) {
+                Text(
+                    "Instalador Android · ${distro.archiveFormat} · verificación SHA-256",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
@@ -783,7 +787,7 @@ private fun TerminalPage(
         )
         Text("Distribución", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         if (installedDistros.isEmpty()) {
-            Text("Todavía no hay distribuciones instaladas. Instala Alpine desde Distros para abrir tu primera shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Todavía no hay distribuciones instaladas. Elige una distribución en Distros para descargar su rootfs y abrir una shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick = onOpenDistros, modifier = Modifier.fillMaxWidth()) { Text("Ir a Distros") }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
