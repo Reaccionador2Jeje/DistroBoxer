@@ -48,7 +48,9 @@ pub fn extract_archive_with_progress(
     let file = File::open(archive_path)?;
     match format {
         "tar.gz" => extract_tar_with_progress(GzDecoder::new(file), destination, &mut progress),
-        "tar.xz" => extract_tar_with_progress(xz2::read::XzDecoder::new(file), destination, &mut progress),
+        "tar.xz" => {
+            extract_tar_with_progress(xz2::read::XzDecoder::new(file), destination, &mut progress)
+        }
         "tar.zst" => {
             let decoder = zstd::stream::read::Decoder::new(file)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
