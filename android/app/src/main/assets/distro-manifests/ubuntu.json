@@ -1,0 +1,14 @@
+{
+  "id": "ubuntu",
+  "version": "jammy",
+  "provider": "Linux Containers image server",
+  "archive_format": "tar.xz",
+  "rootfs_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/ubuntu/jammy/arm64/default/20261111_07:42/rootfs.tar.xz",
+    "x86_64": "https://images.linuxcontainers.org/images/ubuntu/jammy/amd64/default/20261111_07:42/rootfs.tar.xz"
+  },
+  "checksum_source": {
+    "aarch64": "https://images.linuxcontainers.org/images/ubuntu/jammy/arm64/default/20261111_07:42/SHA256SUMS",
+    "x86_64": "https://images.linuxcontainers.org/images/ubuntu/jammy/amd64/default/20261111_07:42/SHA256SUMS"
+  }
+}
