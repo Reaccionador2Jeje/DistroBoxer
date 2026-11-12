@@ -1,8 +1,9 @@
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -70,9 +71,20 @@ fn storage_directory() -> Result<PathBuf, String> {
             .ok_or_else(|| "No se pudo resolver el directorio de datos del usuario".to_string())?;
         return Ok(base.join("distroboxer"));
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
-        Err("La terminal PRoot integrada está disponible inicialmente en Linux".into())
+        let base = std::env::var_os("LOCALAPPDATA")
+            .or_else(|| std::env::var_os("APPDATA"))
+            .map(PathBuf::from)
+            .ok_or_else(|| "No se pudo resolver LOCALAPPDATA".to_string())?;
+        return Ok(base.join("DistroBoxer"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| "No se pudo resolver HOME".to_string())?;
+        return Ok(home.join("Library/Application Support/DistroBoxer"));
     }
 }
 
@@ -205,10 +217,233 @@ fn list_terminal_sessions() -> Result<Vec<u64>, String> {
         .keys().copied().collect())
 }
 
+
+#[derive(Deserialize)]
+struct DistroInstallManifest {
+    archive_format: String,
+    rootfs_source: HashMap<String, String>,
+    checksum_source: HashMap<String, String>,
+}
+
+fn distro_manifest(id: &str) -> Option<&'static str> {
+    match id {
+        "alpine" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/alpine.json")),
+        "debian" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/debian.json")),
+        "ubuntu" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/ubuntu.json")),
+        "arch" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/arch.json")),
+        "fedora" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/fedora.json")),
+        "opensuse" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/opensuse.json")),
+        "void" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/void.json")),
+        "kali" => Some(include_str!("../../android/app/src/main/assets/distro-manifests/kali.json")),
+        _ => None,
+    }
+}
+
+fn is_trusted_download_url(url: &reqwest::Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+    matches!(
+        url.host_str(),
+        Some("dl-cdn.alpinelinux.org") | Some("images.linuxcontainers.org")
+    )
+}
+
+fn download_client() -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(900))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if is_trusted_download_url(attempt.url()) {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
+        .build()
+        .map_err(|error| format!("No se pudo preparar el cliente HTTPS: {error}"))
+}
+
+fn expected_archive_sha256(
+    client: &reqwest::blocking::Client,
+    checksum_url: &str,
+    file_name: &str,
+) -> Result<String, String> {
+    let url = reqwest::Url::parse(checksum_url).map_err(|error| error.to_string())?;
+    if !is_trusted_download_url(&url) {
+        return Err("El servidor de checksums no está autorizado".into());
+    }
+    let body = client
+        .get(url)
+        .send()
+        .map_err(|error| format!("No se pudo descargar SHA256SUMS: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Error HTTP al descargar SHA256SUMS: {error}"))?
+        .text()
+        .map_err(|error| format!("No se pudo leer SHA256SUMS: {error}"))?;
+
+    for line in body.lines().filter(|line| !line.trim().is_empty()) {
+        let mut fields = line.split_whitespace();
+        let digest = fields.next().unwrap_or_default();
+        let listed_name = fields.next().unwrap_or_default()
+            .trim_start_matches('*')
+            .rsplit('/')
+            .next()
+            .unwrap_or_default();
+        if digest.len() == 64
+            && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+            && (listed_name == file_name || listed_name.is_empty())
+        {
+            return Ok(digest.to_ascii_lowercase());
+        }
+    }
+    Err(format!("SHA256SUMS no contiene el hash de {file_name}"))
+}
+
+fn download_verified_archive(
+    client: &reqwest::blocking::Client,
+    source_url: &str,
+    destination: &Path,
+    expected_sha256: &str,
+) -> Result<(), String> {
+    let url = reqwest::Url::parse(source_url).map_err(|error| error.to_string())?;
+    if !is_trusted_download_url(&url) {
+        return Err("La URL del rootfs no pertenece a un servidor autorizado".into());
+    }
+    let mut response = client
+        .get(url)
+        .send()
+        .map_err(|error| format!("Error al descargar el rootfs: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Error HTTP al descargar el rootfs: {error}"))?;
+    if response.content_length().is_some_and(|size| size > 4 * 1024 * 1024 * 1024) {
+        return Err("El archivo supera el límite de descarga de 4 GiB".into());
+    }
+
+    let mut output = File::create(destination)
+        .map_err(|error| format!("No se pudo crear el archivo de descarga: {error}"))?;
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut total = 0_u64;
+    loop {
+        let count = response.read(&mut buffer)
+            .map_err(|error| format!("La descarga se interrumpió: {error}"))?;
+        if count == 0 {
+            break;
+        }
+        total = total.saturating_add(count as u64);
+        if total > 4 * 1024 * 1024 * 1024 {
+            let _ = fs::remove_file(destination);
+            return Err("El archivo supera el límite de descarga de 4 GiB".into());
+        }
+        output.write_all(&buffer[..count])
+            .map_err(|error| format!("No se pudo guardar la descarga: {error}"))?;
+    }
+    output.sync_all().map_err(|error| error.to_string())?;
+
+    if !distroboxer::verify_sha256(destination, expected_sha256)
+        .map_err(|error| error.to_string())?
+    {
+        let _ = fs::remove_file(destination);
+        return Err("La verificación SHA-256 del rootfs falló".into());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn decompress_archive_to_tar(
+    archive: &Path,
+    archive_format: &str,
+    tar_path: &Path,
+) -> Result<(), String> {
+    let file = File::open(archive).map_err(|error| error.to_string())?;
+    let mut decoder: Box<dyn Read> = match archive_format {
+        "tar.gz" => Box::new(flate2::read::GzDecoder::new(file)),
+        "tar.xz" => Box::new(xz2::read::XzDecoder::new(file)),
+        "tar.zst" => Box::new(
+            zstd::stream::read::Decoder::new(file)
+                .map_err(|error| format!("No se pudo abrir el archivo Zstandard: {error}"))?,
+        ),
+        "tar" => Box::new(file),
+        _ => return Err(format!("Formato de archivo no compatible: {archive_format}")),
+    };
+    let mut output = File::create(tar_path).map_err(|error| error.to_string())?;
+    std::io::copy(&mut decoder, &mut output)
+        .map_err(|error| format!("No se pudo preparar el tar para WSL: {error}"))?;
+    output.sync_all().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn install_distribution(distro_id: String) -> Result<String, String> {
+    let distro = distroboxer::find_distro(&distro_id)
+        .ok_or_else(|| "Distribución no compatible".to_string())?;
+    let manifest_text = distro_manifest(&distro_id)
+        .ok_or_else(|| "No existe un manifiesto de instalación para esta distribución".to_string())?;
+    let manifest: DistroInstallManifest = serde_json::from_str(manifest_text)
+        .map_err(|error| format!("Manifiesto inválido: {error}"))?;
+
+    let architecture = match std::env::consts::ARCH {
+        "x86_64" => "x86_64",
+        "aarch64" => "aarch64",
+        other => return Err(format!("Arquitectura no compatible: {other}")),
+    };
+    if !distro.architectures.contains(&architecture) {
+        return Err(format!("{} no ofrece una imagen para {architecture}", distro.name));
+    }
+    if manifest.archive_format != distro.archive_format {
+        return Err("El formato del manifiesto no coincide con el catálogo".into());
+    }
+    let source_url = manifest.rootfs_source.get(architecture)
+        .ok_or_else(|| "No hay descarga para esta arquitectura".to_string())?;
+    let checksum_url = manifest.checksum_source.get(architecture)
+        .ok_or_else(|| "No hay checksums para esta arquitectura".to_string())?;
+    let file_name = source_url.rsplit('/').next()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| "Nombre de archivo de rootfs inválido".to_string())?;
+
+    let storage = storage_directory()?;
+    let manager = distroboxer::StorageManager::new(&storage);
+    let distro_dir = manager.prepare_distro(&distro_id)
+        .map_err(|error| format!("No se pudo preparar el almacenamiento: {error}"))?;
+    let archive_path = distro_dir.join("downloads").join(file_name);
+    let client = download_client()?;
+    let expected_hash = expected_archive_sha256(&client, checksum_url, file_name)?;
+    download_verified_archive(&client, source_url, &archive_path, &expected_hash)?;
+
+    #[cfg(target_os = "linux")]
+    {
+        manager.install_archive_with_progress(
+            &distro_id,
+            &archive_path,
+            &manifest.archive_format,
+            &expected_hash,
+            |_| {},
+        ).map_err(|error| format!("Falló la instalación de {}: {error}", distro.name))?;
+        Ok(format!("{} instalada correctamente.", distro.name))
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let tar_path = distro_dir.join("downloads").join(format!("{distro_id}-wsl-import.tar"));
+        decompress_archive_to_tar(&archive_path, &manifest.archive_format, &tar_path)?;
+        let install_location = storage.join("wsl").join(format!("DistroBoxer-{distro_id}"));
+        let backend = distroboxer::WindowsWsl2Backend::discover()
+            .map_err(|error| format!("No se pudo localizar WSL: {error}"))?;
+        backend.import_rootfs_tarball(&distro_id, install_location, &tar_path)
+            .map_err(|error| format!("Falló la importación a WSL2: {error}"))?;
+        Ok(format!("{} importada en WSL2 correctamente.", distro.name))
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (manager, archive_path, expected_hash);
+        Err("La descarga está preparada, pero macOS necesita el adaptador de máquina virtual Virtualization.framework antes de poder instalar y arrancar una distribución.".into())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_distributions,
+            install_distribution,
             start_terminal,
             write_terminal,
             resize_terminal,
