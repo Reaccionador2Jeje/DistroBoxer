@@ -98,7 +98,11 @@ impl WindowsWsl2Backend {
                 "WSL2 is not available; initialize WSL before importing a distribution",
             ));
         }
-        if self.registered_distributions()?.iter().any(|id| id == distro_id) {
+        if self
+            .registered_distributions()?
+            .iter()
+            .any(|id| id == distro_id)
+        {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("WSL distribution '{name}' is already registered"),
@@ -140,7 +144,11 @@ impl WindowsWsl2Backend {
             }));
         }
 
-        if !self.registered_distributions()?.iter().any(|id| id == distro_id) {
+        if !self
+            .registered_distributions()?
+            .iter()
+            .any(|id| id == distro_id)
+        {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "WSL import returned success but the distribution was not registered",
