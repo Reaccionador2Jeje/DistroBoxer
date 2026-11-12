@@ -137,3 +137,68 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
         Err(_) => std::ptr::null_mut(),
     }
 }
+
+
+/// Verifies and installs a rootfs archive using its declared compression format.
+#[no_mangle]
+pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallArchive(
+    mut env: JNIEnv,
+    _this: JObject,
+    distro_id: JString,
+    base_directory: JString,
+    archive_path: JString,
+    archive_format: JString,
+    expected_sha256: JString,
+    listener: JObject,
+) -> jstring {
+    let read_string = |env: &mut JNIEnv, value: JString| -> Option<String> {
+        env.get_string(&value).ok().map(Into::into)
+    };
+    let distro_id = match read_string(&mut env, distro_id) {
+        Some(value) => value,
+        None => return std::ptr::null_mut(),
+    };
+    let base_directory = match read_string(&mut env, base_directory) {
+        Some(value) => value,
+        None => return std::ptr::null_mut(),
+    };
+    let archive_path = match read_string(&mut env, archive_path) {
+        Some(value) => value,
+        None => return std::ptr::null_mut(),
+    };
+    let archive_format = match read_string(&mut env, archive_format) {
+        Some(value) => value,
+        None => return std::ptr::null_mut(),
+    };
+    let expected_sha256 = match read_string(&mut env, expected_sha256) {
+        Some(value) => value,
+        None => return std::ptr::null_mut(),
+    };
+
+    let result = StorageManager::new(base_directory).install_archive_with_progress(
+        &distro_id,
+        archive_path,
+        &archive_format,
+        &expected_sha256,
+        |line| {
+            if let Ok(message) = env.new_string(line) {
+                let message_object: JObject = message.into();
+                let _ = env.call_method(
+                    &listener,
+                    "onInstallLog",
+                    "(Ljava/lang/String;)V",
+                    &[jni::objects::JValue::Object(&message_object)],
+                );
+            }
+        },
+    );
+    let message = match result {
+        Ok(()) => String::new(),
+        Err(error) => error.to_string(),
+    };
+
+    match env.new_string(message) {
+        Ok(value) => value.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
