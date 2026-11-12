@@ -186,22 +186,23 @@ class DistroArchiveDownloadWorker(
                     .filter { it.isNotBlank() }
                     .toList()
                 require(lines.isNotEmpty()) { "Checksum manifest is empty" }
-                val match = lines.asSequence()
+                val hash = lines.asSequence()
                     .mapNotNull { line ->
                         CHECKSUM_LINE.matchEntire(line.trim())?.let { parsed ->
                             val listedFile = parsed.groupValues.getOrNull(2).orEmpty()
                                 .trim()
                                 .removePrefix("*")
                                 .substringAfterLast('/')
-                            parsed to listedFile
+                            parsed.groupValues[1].takeIf { listedFile == fileName }
                         }
                     }
-                    .firstOrNull { (_, listedFile) -> listedFile == fileName }
+                    .firstOrNull()
                     ?: lines.asSequence()
                         .mapNotNull { CHECKSUM_LINE.matchEntire(it.trim()) }
                         .firstOrNull { it.groupValues.getOrNull(2).orEmpty().isBlank() }
+                        ?.groupValues?.get(1)
                     ?: error("Checksum manifest does not contain $fileName")
-                match.groupValues[1].lowercase()
+                hash.lowercase()
             } finally {
                 connection.disconnect()
             }
