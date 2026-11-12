@@ -245,6 +245,7 @@ class DistroArchiveDownloadWorker(
         const val KEY_SOURCE_URL = "source_url"
         const val KEY_SHA256 = "sha256"
         const val KEY_FILE_NAME = "file_name"
+        const val KEY_ARCHIVE_FORMAT = "archive_format"
         const val KEY_CHECKSUM_URL = "checksum_url"
         const val KEY_PROGRESS = "progress"
         const val KEY_ARCHIVE_PATH = "archive_path"
@@ -269,6 +270,8 @@ class DistroArchiveDownloadWorker(
             "opensuse.org",
             "voidlinux.org",
             "kali.org",
+            "voidlinux.org",
+            "linuxcontainers.org",
         )
     }
 }
