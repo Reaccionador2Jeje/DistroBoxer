@@ -181,19 +181,26 @@ class DistroArchiveDownloadWorker(
                     }
                 }
 
-                val firstLine = body.toString(Charsets.US_ASCII.name())
+                val lines = body.toString(Charsets.US_ASCII.name())
                     .lineSequence()
-                    .firstOrNull { it.isNotBlank() }
-                    ?: error("Checksum manifest is empty")
-                val match = CHECKSUM_LINE.matchEntire(firstLine.trim())
-                    ?: error("Checksum manifest has an unsupported format")
-                val listedFile = match.groupValues.getOrNull(2).orEmpty()
-                    .trim()
-                    .removePrefix("*")
-                    .substringAfterLast('/')
-                require(listedFile.isEmpty() || listedFile == fileName) {
-                    "Checksum manifest names a different archive"
-                }
+                    .filter { it.isNotBlank() }
+                    .toList()
+                require(lines.isNotEmpty()) { "Checksum manifest is empty" }
+                val match = lines.asSequence()
+                    .mapNotNull { line ->
+                        CHECKSUM_LINE.matchEntire(line.trim())?.let { parsed ->
+                            val listedFile = parsed.groupValues.getOrNull(2).orEmpty()
+                                .trim()
+                                .removePrefix("*")
+                                .substringAfterLast('/')
+                            parsed to listedFile
+                        }
+                    }
+                    .firstOrNull { (_, listedFile) -> listedFile == fileName }
+                    ?: lines.asSequence()
+                        .mapNotNull { CHECKSUM_LINE.matchEntire(it.trim()) }
+                        .firstOrNull { it.groupValues.getOrNull(2).orEmpty().isBlank() }
+                    ?: error("Checksum manifest does not contain $fileName")
                 match.groupValues[1].lowercase()
             } finally {
                 connection.disconnect()
