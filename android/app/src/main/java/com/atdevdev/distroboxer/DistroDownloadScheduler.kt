@@ -30,8 +30,9 @@ object DistroDownloadScheduler {
         sourceUrl: String,
         checksumUrl: String,
         fileName: String,
+        archiveFormat: String = "tar.gz",
     ) {
-        enqueueInternal(context, distroId, sourceUrl, "", checksumUrl, fileName)
+        enqueueInternal(context, distroId, sourceUrl, "", checksumUrl, fileName, archiveFormat)
     }
 
     private fun enqueueInternal(
@@ -41,6 +42,7 @@ object DistroDownloadScheduler {
         expectedSha256: String,
         checksumUrl: String,
         fileName: String,
+        archiveFormat: String,
     ) {
         val download = OneTimeWorkRequestBuilder<DistroArchiveDownloadWorker>()
             .setInputData(
@@ -50,6 +52,7 @@ object DistroDownloadScheduler {
                     DistroArchiveDownloadWorker.KEY_SHA256 to expectedSha256,
                     DistroArchiveDownloadWorker.KEY_CHECKSUM_URL to checksumUrl,
                     DistroArchiveDownloadWorker.KEY_FILE_NAME to fileName,
+                    DistroArchiveDownloadWorker.KEY_ARCHIVE_FORMAT to archiveFormat,
                 ),
             )
             .setConstraints(
