@@ -23,4 +23,13 @@ internal object NativeBridge {
         expectedSha256: String,
         listener: NativeInstallListener,
     ): String?
+
+    external fun nativeInstallArchive(
+        distroId: String,
+        baseDirectory: String,
+        archivePath: String,
+        archiveFormat: String,
+        expectedSha256: String,
+        listener: NativeInstallListener,
+    ): String?
 }
