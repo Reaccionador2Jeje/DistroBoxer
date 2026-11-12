@@ -42,7 +42,7 @@ object DistroDownloadScheduler {
         expectedSha256: String,
         checksumUrl: String,
         fileName: String,
-        archiveFormat: String,
+        archiveFormat: String = "tar.gz",
     ) {
         val download = OneTimeWorkRequestBuilder<DistroArchiveDownloadWorker>()
             .setInputData(
