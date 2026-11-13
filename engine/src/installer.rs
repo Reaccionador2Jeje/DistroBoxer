@@ -3,9 +3,9 @@
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::path::{Component, Path};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Component, Path};
 
 /// Extracts a gzip-compressed tar archive into an existing app-private directory.
 ///
