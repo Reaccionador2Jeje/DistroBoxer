@@ -20,9 +20,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: desktop-ci-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
 
 jobs:
   build:
