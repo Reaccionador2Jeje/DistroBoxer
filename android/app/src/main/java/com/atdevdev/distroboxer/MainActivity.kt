@@ -218,6 +218,7 @@ private fun DistroBoxerScreen() {
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var selectedDistroId by remember { mutableStateOf("alpine") }
     var search by remember { mutableStateOf("") }
+    var distroFilter by remember { mutableStateOf("all") }
     var projectFileName by remember { mutableStateOf("main.py") }
     var projectSource by remember {
         mutableStateOf(
@@ -421,10 +422,23 @@ for numero in range(1, 6):
         ActivityResultContracts.RequestPermission(),
     ) { }
 
-    val filteredDistros = catalog.distros.filter {
-        it.name.contains(search, ignoreCase = true) ||
-            it.id.contains(search, ignoreCase = true) ||
-            it.packageManager.contains(search, ignoreCase = true)
+    val installedDistroIds = storageStates
+        .filterValues { it.contains("Instalada", ignoreCase = true) }
+        .keys
+    val filteredDistros = catalog.distros.filter { distro ->
+        val matchesSearch = search.isBlank() ||
+            distro.name.contains(search, ignoreCase = true) ||
+            distro.id.contains(search, ignoreCase = true) ||
+            distro.packageManager.contains(search, ignoreCase = true) ||
+            distro.description.contains(search, ignoreCase = true) ||
+            distro.bootstrap.contains(search, ignoreCase = true) ||
+            distro.archiveFormat.contains(search, ignoreCase = true)
+        val matchesFilter = when (distroFilter) {
+            "installed" -> distro.id in installedDistroIds
+            "available" -> distro.id !in installedDistroIds
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
 
     Scaffold(
@@ -493,9 +507,20 @@ for numero in range(1, 6):
                     onOpenTerminal = { selectedTab = AppTab.TERMINAL },
                 )
                 AppTab.DISTROS -> {
-                    Text("Tus distribuciones", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Explora los entornos disponibles para tu dispositivo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Tus distribuciones", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Explora y administra tus entornos Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = { coroutineScope.launch { refreshDistroStates() } }) {
+                            Text("Actualizar")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = search,
                         onValueChange = { search = it },
@@ -504,8 +529,29 @@ for numero in range(1, 6):
                         shape = RoundedCornerShape(15.dp),
                         label = { Text("Buscar distro o gestor") },
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        FilterChip(selected = distroFilter == "all", onClick = { distroFilter = "all" }, label = { Text("Todas") })
+                        FilterChip(selected = distroFilter == "installed", onClick = { distroFilter = "installed" }, label = { Text("Instaladas") })
+                        FilterChip(selected = distroFilter == "available", onClick = { distroFilter = "available" }, label = { Text("Pendientes") })
+                    }
+                    Text(
+                        "${filteredDistros.size} de ${catalog.distros.size} distribuciones",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (filteredDistros.isEmpty()) {
+                            item {
+                                SectionCard(
+                                    title = "No hay resultados",
+                                    value = "Prueba otra búsqueda o filtro",
+                                    detail = "Cambia el texto de búsqueda o selecciona «Todas».",
+                                    good = false,
+                                )
+                            }
+                        }
                         items(filteredDistros, key = { it.id }) { distro ->
                             DistroCard(
                                 distro = distro,
@@ -743,7 +789,7 @@ private fun DistroCard(
             Text("${distro.bootstrap} · ${distro.archiveFormat}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar") }
+                Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar espacio") }
                 if (distro.id == "alpine" && !installed) {
                     Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
                 }
@@ -763,7 +809,11 @@ private fun DistroCard(
                 }
             }
             if (distro.id != "alpine" && !installed) {
-                Text("El instalador Android está disponible actualmente para Alpine.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "Instalador Android próximamente. «Preparar espacio» no descarga ni instala Linux.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
