@@ -18,9 +18,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: rust-ci-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
 
 jobs:
   check:
