@@ -1,6 +1,7 @@
 package com.atdevdev.distroboxer
 
 import android.content.Context
+import android.system.Os
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
@@ -110,11 +111,38 @@ class ProotRuntime(context: Context) {
         check(target.toPath().startsWith(root.toPath()) && target.isFile) {
             "El ejecutable Linux /$relativePath no existe o apunta fuera del rootfs."
         }
-        if (!target.canExecute()) {
-            check(target.setExecutable(true, false) && target.canExecute()) {
-                "No se pudieron restaurar los permisos de ejecución de /$relativePath. " +
-                    "Comprueba el sistema de archivos y vuelve a instalar Alpine si el rootfs está incompleto."
+
+        // Android puede extraer correctamente el archivo, pero dejar algún
+        // directorio padre sin permiso de recorrido. Linux devuelve EACCES
+        // incluso cuando el propio shell tiene el bit ejecutable.
+        val directories = mutableListOf<File>()
+        var parent: File? = target.parentFile
+        while (parent != null && parent.toPath().startsWith(root.toPath())) {
+            directories += parent
+            if (parent == root) break
+            parent = parent.parentFile
+        }
+        check(directories.lastOrNull() == root) {
+            "No se pudo validar la ruta completa del ejecutable /$relativePath."
+        }
+
+        try {
+            directories.asReversed().forEach { directory ->
+                val mode = Os.stat(directory.absolutePath).st_mode and 0x1FF
+                Os.chmod(directory.absolutePath, mode or 0x1ED)
             }
+            val fileMode = Os.stat(target.absolutePath).st_mode and 0x1FF
+            Os.chmod(target.absolutePath, fileMode or 0x1ED)
+        } catch (error: Exception) {
+            throw IllegalStateException(
+                "No se pudieron reparar los permisos de /$relativePath: ${error.message}",
+                error,
+            )
+        }
+
+        check(target.canRead() && target.canExecute() &&
+            directories.all { it.canRead() && it.canExecute() }) {
+            "El shell /$relativePath o alguno de sus directorios sigue sin permisos de lectura/ejecución."
         }
     }
 
