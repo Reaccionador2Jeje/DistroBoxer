@@ -615,7 +615,7 @@ for numero in range(1, 6):
                     onDistroSelected = { selectDistroForTerminal(it) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
                     terminalOutput = terminalOutput,
-                    onClearOutput = { terminalOutput = "DistroBoxer · Registro limpiado.\\n" },
+                    onClearOutput = { terminalOutput = "DistroBoxer · Registro limpiado.\n" },
                     terminalCommand = terminalCommand,
                     terminalStatus = terminalStatus,
                     onCommandChange = { terminalCommand = it },
@@ -731,8 +731,8 @@ private fun HomePage(
         item {
             Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Abrir terminal Linux") }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Programación") }
-                Button(onClick = onOpenDesktop, modifier = Modifier.weight(1f)) { Text("Escritorio X11") }
+                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Código") }
+                Button(onClick = onOpenDesktop, modifier = Modifier.weight(1f)) { Text("Escritorio") }
             }
         }
         item {
