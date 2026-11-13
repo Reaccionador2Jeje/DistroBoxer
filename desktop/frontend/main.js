@@ -1,6 +1,7 @@
 const catalog = document.querySelector("#catalog");
 const engineStatus = document.querySelector("#engine-mini");
 const search = document.querySelector("#distro-search");
+const refreshButton = document.querySelector("#refresh-catalog");
 let distributions = [];
 
 const pages = {
@@ -36,6 +37,8 @@ function renderDistro(distro) {
   id.textContent = distro.id.toUpperCase();
   const details = document.createElement("p");
   details.textContent = `${distro.package_manager.toUpperCase()} · ${distro.architectures.join(", ")}`;
+  const description = document.createElement("p");
+  description.textContent = distro.description || "Perfil de distribución Linux.";
   const bootstrap = document.createElement("p");
   bootstrap.className = "muted";
   bootstrap.textContent = `Base: ${distro.bootstrap} · ${distro.archive_format}`;
@@ -47,14 +50,15 @@ function renderDistro(distro) {
   const badge = document.createElement("span");
   badge.className = "status";
   badge.textContent = distro.id === "alpine" ? "INSTALADOR ANDROID EN PRUEBAS" : "PERFIL · INSTALADOR PENDIENTE";
-  card.append(title, id, details, bootstrap, link, badge);
+  card.append(title, id, details, description, bootstrap, link, badge);
   return card;
 }
 
 function renderCatalog() {
   const query = (search?.value || "").trim().toLowerCase();
   const filtered = distributions.filter((distro) =>
-    [distro.name, distro.id, distro.package_manager].some((value) => value.toLowerCase().includes(query))
+    [distro.name, distro.id, distro.package_manager, distro.description, distro.bootstrap, distro.archive_format]
+      .some((value) => String(value || "").toLowerCase().includes(query))
   );
   catalog.replaceChildren();
   if (filtered.length === 0) {
@@ -71,6 +75,11 @@ function renderCatalog() {
 search?.addEventListener("input", renderCatalog);
 
 async function loadCatalog() {
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Actualizando…";
+  }
+  engineStatus.textContent = "Conectando motor…";
   try {
     distributions = await window.__TAURI__.core.invoke("list_distributions");
     renderCatalog();
@@ -84,9 +93,35 @@ async function loadCatalog() {
     document.querySelector("#stat-engine").textContent = "OFFLINE";
     document.querySelector("#settings-engine").textContent = "No disponible";
     document.querySelector("#distro-count").textContent = "Catálogo no disponible";
-    catalog.innerHTML = '<div class="empty-state">No se pudo conectar con el motor Rust.</div>';
+    const message = error instanceof Error ? error.message : String(error);
+    const panel = document.createElement("div");
+    panel.className = "error-state";
+    const title = document.createElement("strong");
+    title.textContent = "No se pudo cargar el catálogo";
+    const detail = document.createElement("p");
+    detail.textContent = message;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Copiar error";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(message);
+        copy.textContent = "Error copiado";
+      } catch {
+        copy.textContent = "No se pudo copiar";
+      }
+    });
+    panel.append(title, detail, copy);
+    catalog.replaceChildren(panel);
     engineStatus.textContent = "Motor Rust no disponible";
+    engineStatus.parentElement.classList.remove("connected");
+  } finally {
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.textContent = "↻ Actualizar";
+    }
   }
 }
 
+refreshButton?.addEventListener("click", loadCatalog);
 loadCatalog();
