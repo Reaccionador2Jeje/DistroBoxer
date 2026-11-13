@@ -54,6 +54,9 @@ class ProotRuntime(context: Context) {
         // PRoot crea archivos auxiliares en este directorio del host Android.
         // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
         val prootTempDirectory = prepareProotTempDirectory()
+        // Ejecutamos el shell directamente: /usr/bin/env no es necesario y
+        // puede fallar en rootfs Android/PRoot por permisos o enlaces BusyBox.
+        // El entorno se entrega desde ProcessBuilder para evitar ese execve extra.
         val command = mutableListOf(
             prootFile.absolutePath,
             "--kill-on-exit",
@@ -67,32 +70,28 @@ class ProotRuntime(context: Context) {
             "-b", "/sys",
             "-b", "/system",
             "-b", "/apex",
-            "/usr/bin/env", "-i",
-            "HOME=/root",
-            "USER=root",
-            "LOGNAME=root",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "LANG=C.UTF-8",
-            "TERM=xterm-256color",
-            "TMPDIR=/tmp",
+            "/bin/sh", "-i",
         )
         if (!display.isNullOrBlank()) {
             require(display == "127.0.0.1:1" || display.matches(Regex(":[0-9]{1,2}"))) {
                 "DISPLAY no válido"
             }
-            command += "DISPLAY=$display"
         }
-        command += listOf("/bin/sh", "-i")
 
         val process = ProcessBuilder(command)
             .directory(rootfs)
             .redirectErrorStream(true)
             .apply {
                 environment().clear()
-                environment()["HOME"] = appContext.filesDir.absolutePath
-                environment()["TMPDIR"] = prootTempDirectory.absolutePath
+                environment()["HOME"] = "/root"
+                environment()["USER"] = "root"
+                environment()["LOGNAME"] = "root"
+                environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                environment()["LANG"] = "C.UTF-8"
+                environment()["TERM"] = "xterm-256color"
+                environment()["TMPDIR"] = "/tmp"
                 environment()["PROOT_TMP_DIR"] = prootTempDirectory.absolutePath
-                environment()["PATH"] = "/system/bin:/system/xbin"
+                if (!display.isNullOrBlank()) environment()["DISPLAY"] = display
             }
             .start()
 
