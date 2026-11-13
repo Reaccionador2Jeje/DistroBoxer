@@ -49,7 +49,7 @@ function renderDistro(distro) {
   link.textContent = "Sitio oficial ↗";
   const badge = document.createElement("span");
   badge.className = "status";
-  badge.textContent = distro.id === "alpine" ? "INSTALADOR ANDROID EN PRUEBAS" : "PERFIL · INSTALADOR PENDIENTE";
+  badge.textContent = "PERFIL DE CATÁLOGO · INSTALACIÓN PENDIENTE";
   card.append(title, id, details, description, bootstrap, link, badge);
   return card;
 }
