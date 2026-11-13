@@ -52,6 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -162,10 +164,16 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         confirmButton = {
-                            TextButton(onClick = {
-                                crashReportFile.delete()
-                                crashReport = ""
-                            }) { Text("Cerrar informe") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val clipboard = LocalClipboardManager.current
+                                TextButton(onClick = {
+                                    clipboard.setText(AnnotatedString(crashReport))
+                                }) { Text("Copiar error") }
+                                TextButton(onClick = {
+                                    crashReportFile.delete()
+                                    crashReport = ""
+                                }) { Text("Cerrar informe") }
+                            }
                         },
                     )
                 }
@@ -746,6 +754,13 @@ private fun DistroCard(
             if (storageStatus != null) {
                 Spacer(Modifier.height(8.dp))
                 Text(storageStatus, color = if (installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                if (storageStatus.contains("error", ignoreCase = true) ||
+                    storageStatus.contains("no se pudo", ignoreCase = true) ||
+                    storageStatus.contains("fall", ignoreCase = true) ||
+                    storageStatus.contains("incompatible", ignoreCase = true)
+                ) {
+                    CopyErrorButton(storageStatus)
+                }
             }
             if (distro.id != "alpine" && !installed) {
                 Text("El instalador Android está disponible actualmente para Alpine.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
@@ -811,6 +826,12 @@ private fun TerminalPage(
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(terminalOutput, color = Color(0xFFD5E8DD), style = MaterialTheme.typography.bodySmall)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    val clipboard = LocalClipboardManager.current
+                    TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(terminalOutput))
+                    }) { Text("Copiar registro") }
+                }
             }
         }
         OutlinedTextField(
@@ -898,6 +919,12 @@ private fun ProgrammingPage(
             detail = "Guarda el código en el espacio privado de DistroBoxer. Al ejecutarlo, se copia a /root/projects dentro de Alpine y se lanza desde la terminal.",
             good = true,
         )
+        if (status.contains("error", ignoreCase = true) ||
+            status.contains("no se pudo", ignoreCase = true) ||
+            status.contains("fall", ignoreCase = true)
+        ) {
+            CopyErrorButton(status)
+        }
         Text(
             "Antes de ejecutar Python por primera vez, instala el intérprete desde la terminal con: apk add python3",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -946,6 +973,11 @@ private fun DesktopPage(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(x11Status, color = Color(0xFFC4D5DF), style = MaterialTheme.typography.bodySmall)
+                if (x11Status.contains("no se pudo", ignoreCase = true) ||
+                    x11Status.contains("error", ignoreCase = true)
+                ) {
+                    CopyErrorButton(x11Status)
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onStartX11, enabled = x11Available && !x11Running) { Text("Iniciar X11") }
@@ -1037,5 +1069,16 @@ private fun SettingsPage(
         SectionCard("Privacidad", "Almacenamiento privado", "Las distribuciones se guardan dentro del espacio privado de DistroBoxer. No se solicita acceso general a tus archivos.", true)
         SectionCard("Modelo de la app", "Gratis y de código abierto", "Sin anuncios, suscripciones ni compras integradas previstas.", true)
         Text("DistroBoxer · Atdev Dev · Versión 0.3.0", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+ 
+@Composable
+private fun CopyErrorButton(errorText: String) {
+    val clipboard = LocalClipboardManager.current
+    TextButton(
+        onClick = { clipboard.setText(AnnotatedString(errorText)) },
+    ) {
+        Text("Copiar error")
     }
 }
