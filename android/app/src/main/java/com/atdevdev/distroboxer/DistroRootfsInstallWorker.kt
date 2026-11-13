@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 
 /** Extracts a previously verified gzip tarball into the selected private rootfs. */
 class DistroRootfsInstallWorker(
@@ -32,18 +33,30 @@ class DistroRootfsInstallWorker(
         setForeground(foregroundInfo("Installing $distroId root filesystem"))
 
         return try {
-            val installed = withContext(Dispatchers.IO) {
+            val installError = withContext(Dispatchers.IO) {
                 NativeBridge.nativeInstallTarGz(
                     distroId,
                     applicationContext.filesDir.absolutePath,
                     archivePath,
                     expectedHash,
+                    object : NativeInstallListener {
+                        override fun onInstallLog(message: String) {
+                            runBlocking {
+                                setProgress(workDataOf(KEY_LIVE_LOG to message))
+                            }
+                        }
+                    },
                 )
             }
-            if (installed) {
+            if (installError == "") {
                 Result.success(workDataOf("installed_distro_id" to distroId))
             } else {
-                Result.failure(workDataOf(DistroArchiveDownloadWorker.KEY_ERROR to "Root filesystem extraction or verification failed"))
+                Result.failure(
+                    workDataOf(
+                        DistroArchiveDownloadWorker.KEY_ERROR to
+                            (installError ?: "Native installer returned no result"),
+                    ),
+                )
             }
         } catch (error: Exception) {
             Result.failure(workDataOf(DistroArchiveDownloadWorker.KEY_ERROR to (error.message ?: "Installation failed")))
@@ -78,6 +91,7 @@ class DistroRootfsInstallWorker(
     }
 
     companion object {
+        const val KEY_LIVE_LOG = "live_install_log"
         private const val CHANNEL_ID = "distro_installation"
         private const val NOTIFICATION_ID = 7302
     }

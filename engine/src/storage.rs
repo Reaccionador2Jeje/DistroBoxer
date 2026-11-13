@@ -1,8 +1,8 @@
 //! App-private storage management for Linux distributions.
 
 use crate::metadata::{DistroMetadata, InstallStatus};
+use crate::verify_sha256;
 use crate::{distro_path, find_distro, is_supported};
-use crate::{installer::extract_tar_gz, verify_sha256};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -193,6 +193,17 @@ impl StorageManager {
         archive_path: impl AsRef<Path>,
         expected_sha256: &str,
     ) -> io::Result<()> {
+        self.install_tar_gz_with_progress(id, archive_path, expected_sha256, |_| {})
+    }
+
+    /// Installs a rootfs while forwarding extraction log lines to the caller.
+    pub fn install_tar_gz_with_progress(
+        &self,
+        id: &str,
+        archive_path: impl AsRef<Path>,
+        expected_sha256: &str,
+        mut progress: impl FnMut(String),
+    ) -> io::Result<()> {
         let distro = find_distro(id).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
@@ -212,6 +223,7 @@ impl StorageManager {
                 "archive must be inside the distribution's private downloads directory",
             ));
         }
+        progress("Verificando SHA-256 del rootfs…".to_owned());
         if !verify_sha256(&archive_path, expected_sha256)? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -219,6 +231,7 @@ impl StorageManager {
             ));
         }
 
+        progress("Preparando directorio temporal…".to_owned());
         self.set_status(id, InstallStatus::NotInstalled, None)?;
         self.transition_status(id, InstallStatus::Preparing, None)?;
         self.transition_status(id, InstallStatus::Downloading, None)?;
@@ -237,7 +250,11 @@ impl StorageManager {
             }
 
             fs::create_dir(&staging)?;
-            extract_tar_gz(&archive_path, &staging)?;
+            progress("Iniciando extracción del sistema Linux…".to_owned());
+            crate::installer::extract_tar_gz_with_progress(&archive_path, &staging, |line| {
+                progress(line)
+            })?;
+            progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
             let rootfs = distro_dir.join("rootfs");
@@ -254,6 +271,7 @@ impl StorageManager {
             }
 
             remove_real_directory_if_present(&backup)?;
+            progress("Instalación finalizada correctamente.".to_owned());
             Ok(())
         })();
 
@@ -290,8 +308,16 @@ impl StorageManager {
         }
 
         let release_file = etc_dir.join("os-release");
-        match fs::symlink_metadata(&release_file) {
-            Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
+        let resolved_release = match fs::canonicalize(&release_file) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        if !resolved_release.starts_with(&rootfs) {
+            return Ok(false);
+        }
+        match fs::metadata(&resolved_release) {
+            Ok(metadata) => Ok(metadata.is_file()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         }
@@ -310,15 +336,23 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
     }
 
     let release = rootfs.join("etc/os-release");
-    let metadata = fs::symlink_metadata(&release)?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
+    let rootfs_canonical = fs::canonicalize(rootfs)?;
+    let resolved_release = fs::canonicalize(&release).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("root filesystem is missing a readable etc/os-release: {error}"),
+        )
+    })?;
+    if !resolved_release.starts_with(&rootfs_canonical)
+        || !fs::metadata(&resolved_release)?.is_file()
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "root filesystem is missing a regular etc/os-release file",
+            "root filesystem etc/os-release does not resolve to a regular file inside rootfs",
         ));
     }
 
-    let release_contents = fs::read_to_string(release)?;
+    let release_contents = fs::read_to_string(resolved_release)?;
     let expected_id_line = format!("ID={expected_id}");
     if !release_contents
         .lines()
@@ -446,6 +480,26 @@ mod tests {
             fs::read_to_string(distro_dir.join("rootfs/etc/os-release")).unwrap(),
             "ID=alpine\n"
         );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_os_release_symlink_inside_rootfs() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let distro_dir = manager.prepare_distro("alpine").unwrap();
+        let rootfs = distro_dir.join("rootfs");
+        fs::create_dir_all(rootfs.join("usr/lib")).unwrap();
+        fs::create_dir_all(rootfs.join("etc")).unwrap();
+        fs::write(rootfs.join("usr/lib/os-release"), "ID=alpine\n").unwrap();
+        symlink("../usr/lib/os-release", rootfs.join("etc/os-release")).unwrap();
+
+        validate_rootfs_release_file(&rootfs, "alpine").unwrap();
+        assert!(manager.is_installed("alpine").unwrap());
 
         fs::remove_dir_all(base).unwrap();
     }

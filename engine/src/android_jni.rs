@@ -92,30 +92,48 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallT
     base_directory: JString,
     archive_path: JString,
     expected_sha256: JString,
-) -> jboolean {
+    listener: JObject,
+) -> jstring {
     let distro_id: String = match env.get_string(&distro_id) {
         Ok(value) => value.into(),
-        Err(_) => return JNI_FALSE,
+        Err(_) => return std::ptr::null_mut(),
     };
     let base_directory: String = match env.get_string(&base_directory) {
         Ok(value) => value.into(),
-        Err(_) => return JNI_FALSE,
+        Err(_) => return std::ptr::null_mut(),
     };
     let archive_path: String = match env.get_string(&archive_path) {
         Ok(value) => value.into(),
-        Err(_) => return JNI_FALSE,
+        Err(_) => return std::ptr::null_mut(),
     };
     let expected_sha256: String = match env.get_string(&expected_sha256) {
         Ok(value) => value.into(),
-        Err(_) => return JNI_FALSE,
+        Err(_) => return std::ptr::null_mut(),
     };
 
-    match StorageManager::new(base_directory).install_tar_gz(
+    let result = StorageManager::new(base_directory).install_tar_gz_with_progress(
         &distro_id,
         archive_path,
         &expected_sha256,
-    ) {
-        Ok(()) => JNI_TRUE,
-        Err(_) => JNI_FALSE,
+        |line| {
+            if let Ok(message) = env.new_string(line) {
+                let message_object: JObject = message.into();
+                let _ = env.call_method(
+                    &listener,
+                    "onInstallLog",
+                    "(Ljava/lang/String;)V",
+                    &[jni::objects::JValue::Object(&message_object)],
+                );
+            }
+        },
+    );
+    let message = match result {
+        Ok(()) => String::new(),
+        Err(error) => format!("{error:#}"),
+    };
+
+    match env.new_string(message) {
+        Ok(value) => value.into_raw(),
+        Err(_) => std::ptr::null_mut(),
     }
 }

@@ -1,8 +1,8 @@
 # DistroBoxer
 
-**DistroBoxer** is an open-source Linux distribution environment manager for Android, Windows, and Linux desktop.
+**DistroBoxer** is an open-source Linux environment manager and lightweight development workspace for Android, Windows, and Linux desktop.
 
-The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. The Android runtime is planned around PRoot or a compatible unprivileged userspace runtime. It is not a full virtual machine and does not provide a separate Linux kernel.
+The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. On Android, PRoot runs Linux user-space programs without granting Android root access or providing a separate Linux kernel.
 
 ## Project status
 
@@ -13,27 +13,23 @@ Implemented:
 - Architecture compatibility metadata for `aarch64` and `x86_64`.
 - Validated distribution IDs and isolated app-private storage.
 - JSON metadata and validated installation lifecycle transitions.
-- SHA-256 verification primitive.
-- Redesigned Android Compose interface with dashboard, distro search, terminal center, graphical-desktop center, and settings navigation.
-- Redesigned responsive desktop workspace with sidebar navigation, searchable catalog, terminal preview, and graphical-desktop catalog.
-- Redesigned Android Compose interface with dashboard, distro search, terminal center, graphical-desktop center, and settings navigation.
-- Redesigned responsive desktop workspace with sidebar navigation, searchable catalog, terminal preview, and graphical-desktop catalog.
-- Android Compose application and JNI bridge to Rust.
-- Android adaptive launcher icon and app identity assets.
-- Alpine 3.24.4 ARM64/x86_64 source manifest and official SHA-256 manifest lookup.
-- WorkManager download-to-install chain for Alpine gzip tarballs, with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground notifications.
-- Rust gzip tar extractor with path traversal and unsafe link checks, staging validation, and rootfs promotion.
-- Initial Tauri desktop application for Windows, Linux, and macOS builds.
+- Alpine rootfs download and installation pipeline with HTTPS allowlisting, SHA-256 verification, cancellation, and foreground notifications.
+- Rust gzip tar extraction with path traversal and unsafe link checks, staging validation, and rootfs promotion.
+- Android PRoot builds pinned to a Termux source revision for `arm64-v8a` and `x86_64`; Android CI packages the verified binaries into the APK.
+- First-launch PRoot installation into app-private storage with SHA-256 verification.
+- Interactive PRoot shell wired to the Android Terminal screen.
+- A small programming workspace with a Python example, source editing, private project saving, and execution inside an installed Alpine rootfs.
+- Embedded Android X11 server pinned as a submodule, loopback-only TCP listener, and Compose display surface.
 - Android, desktop, and tagged-release GitHub Actions workflows.
+- Initial Tauri desktop application for Windows, Linux, and macOS builds.
 - Initial F-Droid listing text and submission checklist.
 
-Not implemented yet:
-- Trusted, pinned rootfs manifests and end-to-end installation for each distribution.
-- Safe archive/OCI layer extraction and recovery from interrupted extraction.
-- Bundled PRoot runtime and interactive Linux terminal.
-- X11 display backend and XFCE/LXQt/MATE session launcher (design documented; not yet implemented).
-- X11 display backend and XFCE/LXQt/MATE session launcher (design documented; not yet implemented).
-- Persistent background Linux sessions (the current background worker handles downloads only).
+Still in development:
+- Physical-device validation of PRoot shell startup and interactive I/O.
+- Persistent foreground service for Linux sessions.
+- Trusted rootfs manifests and end-to-end installation for every listed distribution; Alpine is the only current Android install path.
+- Full X11 compatibility, GPU acceleration, and tested XFCE/LXQt/MATE sessions. The embedded Java X11 server is a lightweight first backend, not a full X.Org replacement.
+- Safe archive/OCI layer extraction and recovery from interrupted extraction for all distro formats.
 - Signed production Android APK/AAB and platform installer bundles.
 - Official F-Droid submission and acceptance.
 
@@ -42,13 +38,14 @@ The catalog profiles describe intended bootstrap formats; they do not mean that 
 ## Repository layout
 
 ```text
-android/       Native Android app, WorkManager download pipeline, JNI
+android/       Native Android app, PRoot runtime, embedded X11 submodule
 desktop/       Tauri desktop application and SVG brand assets
 engine/        Shared Rust core
 runtime/       Runtime integration notes
 docs/          Architecture and roadmap
 fastlane/      Android app listing metadata
 fdroid/        F-Droid submission checklist
+scripts/       Build-time runtime patching helpers
 .github/       Android, desktop, and release workflows
 ```
 
@@ -64,12 +61,16 @@ cargo test --workspace
 
 Requirements: JDK 17, Android SDK platform 35, NDK 27.2.12479018, Rust stable, Android Rust targets, cargo-ndk, and Gradle 8.9.
 
+Clone with submodules so the embedded X11 source is available:
+
 ```sh
+git clone --recurse-submodules https://github.com/Reaccionador2Jeje/DistroBoxer.git
+bash scripts/patch-x11-server.sh
 cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release -p distroboxer-engine
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is at `android/app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI builds PRoot for both ABIs, checks out and patches the pinned X11 submodule, then packages the APK.
 
 ## Build desktop
 
@@ -83,11 +84,7 @@ See [desktop/README.md](desktop/README.md) for platform-specific requirements.
 
 ## Graphical desktop roadmap
 
-See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture, display-backend choices, free desktop profiles, and Android session lifecycle. The current Android and desktop graphical-desktop screens are UI previews only; they do not launch X11 or a Linux desktop yet.
-
-## Graphical desktop roadmap
-
-See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture, display-backend choices, free desktop profiles, and Android session lifecycle. The current Android and desktop graphical-desktop screens are UI previews only; they do not launch X11 or a Linux desktop yet.
+See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The Android X11 screen and PRoot launch path are integrated in source, but complete desktop compatibility still requires testing on physical Android devices.
 
 ## Background work and permissions
 
@@ -105,9 +102,10 @@ F-Droid publication is not yet complete. See [fdroid/README.md](fdroid/README.md
 - Verify a published checksum before accepting an archive.
 - Reject archive path traversal, unsafe links, and unexpected file types during extraction.
 - Keep distributions inside isolated app-private directories.
+- Bind the embedded X11 listener to loopback only; do not expose it to Wi-Fi.
 - Never run downloaded setup scripts automatically.
 - Do not claim root, kernel, or full-VM capabilities where Android does not provide them.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT for DistroBoxer. Third-party runtime components retain their own licenses; see the notices under `android/app/src/main/assets/licenses/` and the PRoot license bundled in the APK.

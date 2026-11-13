@@ -11,6 +11,7 @@ on:
       - "engine/**"
       - "android/**"
       - ".github/workflows/android.yml"
+      - ".github/workflows/proot-runtime.yml"
   pull_request:
     paths:
       - "settings.gradle.kts"
@@ -21,18 +22,59 @@ on:
       - "engine/**"
       - "android/**"
       - ".github/workflows/android.yml"
+      - ".github/workflows/proot-runtime.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+
 jobs:
+  build-proot:
+    name: Build bundled PRoot runtimes
+    uses: ./.github/workflows/proot-runtime.yml
+    permissions:
+      contents: read
+
   assemble:
     name: Assemble Android debug APK
+    needs: build-proot
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Restrict embedded X11 server to loopback
+        run: bash scripts/patch-x11-server.sh
+
+      - name: Download PRoot ABI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: proot-*
+          path: runtime-artifacts
+          merge-multiple: false
+
+      - name: Package verified PRoot binaries as APK assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for abi in arm64-v8a x86_64; do
+            archive="runtime-artifacts/proot-$abi/proot-$abi.zip"
+            test -s "$archive"
+            destination="android/app/src/main/assets/runtime/$abi"
+            native_destination="android/app/src/main/jniLibs/$abi"
+            mkdir -p "$destination" "$native_destination"
+            unzip -p "$archive" "proot-$abi/proot" > "$destination/proot"
+            chmod 755 "$destination/proot"
+            sha256sum "$destination/proot" | awk '{print $1}' > "$destination/proot.sha256"
+            install -m 755 "$destination/proot" "$native_destination/libproot.so"
+            test -s "$native_destination/libproot.so"
+            test "$(wc -c < "$destination/proot")" -gt 50000
+          done
+          unzip -p runtime-artifacts/proot-arm64-v8a/proot-arm64-v8a.zip proot-arm64-v8a/COPYING-PROOT > android/app/src/main/assets/runtime/COPYING-PROOT
+          sha256sum android/app/src/main/assets/runtime/arm64-v8a/proot android/app/src/main/assets/runtime/x86_64/proot
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -52,6 +94,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked

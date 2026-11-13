@@ -3,6 +3,8 @@
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io::{self, Read};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Component, Path};
 
 /// Extracts a gzip-compressed tar archive into an existing app-private directory.
@@ -12,6 +14,15 @@ use std::path::{Component, Path};
 pub fn extract_tar_gz(
     archive_path: impl AsRef<Path>,
     destination: impl AsRef<Path>,
+) -> io::Result<()> {
+    extract_tar_gz_with_progress(archive_path, destination, |_| {})
+}
+
+/// Extracts a gzip tarball and reports extraction progress as entries are unpacked.
+pub fn extract_tar_gz_with_progress(
+    archive_path: impl AsRef<Path>,
+    destination: impl AsRef<Path>,
+    mut progress: impl FnMut(String),
 ) -> io::Result<()> {
     let archive_path = archive_path.as_ref();
     let file_metadata = fs::symlink_metadata(archive_path)?;
@@ -23,17 +34,33 @@ pub fn extract_tar_gz(
     }
 
     let file = File::open(archive_path)?;
-    extract_tar(GzDecoder::new(file), destination)
+    extract_tar_with_progress(GzDecoder::new(file), destination, &mut progress)
 }
 
 /// Extracts an uncompressed tar stream after validating every path and link.
 pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Result<()> {
+    extract_tar_with_progress(reader, destination, &mut |_| {})
+}
+
+/// Extracts a tar stream and emits a live log line every 500 archive entries.
+pub fn extract_tar_with_progress<R: Read>(
+    reader: R,
+    destination: impl AsRef<Path>,
+    progress: &mut dyn FnMut(String),
+) -> io::Result<()> {
     fs::create_dir_all(destination.as_ref())?;
     let destination = fs::canonicalize(destination)?;
 
     let mut archive = tar::Archive::new(reader);
     let mut entry_count = 0_usize;
     let mut total_unpacked_bytes = 0_u64;
+    // Absolute symlinks are normal in Linux rootfs archives. Defer their
+    // creation until every regular entry is unpacked, then rewrite them as
+    // equivalent relative links so they cannot escape the host app directory.
+    let mut deferred_symlinks: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
+    // Directory permissions are applied last so extraction can still create
+    // children even when the archive records restrictive directory modes.
+    let mut deferred_directories: Vec<(std::path::PathBuf, u32)> = Vec::new();
     archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     archive.set_unpack_xattrs(false);
@@ -41,6 +68,11 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
     for item in archive.entries()? {
         let mut entry = item?;
         entry_count += 1;
+        if entry_count == 1 || entry_count % 500 == 0 {
+            progress(format!(
+                "Extrayendo archivos Linux… {entry_count} entradas procesadas"
+            ));
+        }
         if entry_count > MAX_ARCHIVE_ENTRIES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -61,11 +93,29 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
         validate_archive_path(&entry_path)?;
 
         let entry_type = entry.header().entry_type();
+        // Preserve ordinary Unix permissions (especially executable bits),
+        // but never restore setuid, setgid, or sticky bits from an archive.
+        let safe_mode = entry.header().mode()? as u32 & 0o777;
+        // Android's app sandbox cannot recreate device nodes or FIFOs. PRoot
+        // provides runtime /dev bindings, so safely skip these archive entries.
+        if entry_type.is_block_special()
+            || entry_type.is_character_special()
+            || entry_type.is_fifo()
+        {
+            continue;
+        }
         if entry_type.is_symlink() {
             let target = entry.link_name()?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "symbolic link has no target")
             })?;
-            validate_symlink_target(&entry_path, &target)?;
+            let safe_target = if target.is_absolute() {
+                absolute_link_as_relative(&entry_path, &target)?
+            } else {
+                validate_symlink_target(&entry_path, &target)?;
+                target.to_path_buf()
+            };
+            deferred_symlinks.push((entry_path, safe_target));
+            continue;
         } else if entry_type.is_hard_link() {
             let target = entry.link_name()?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "hard link has no target")
@@ -78,15 +128,121 @@ pub fn extract_tar<R: Read>(reader: R, destination: impl AsRef<Path>) -> io::Res
             ));
         }
 
-        if !entry.unpack_in(&destination)? {
+        if !entry.unpack_in(&destination).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("failed to extract '{}': {error}", entry_path.display()),
+            )
+        })? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "archive entry would escape the extraction directory",
+                format!(
+                    "archive entry '{}' would escape the extraction directory",
+                    entry_path.display()
+                ),
             ));
+        }
+
+        let extracted_path = destination.join(&entry_path);
+        if entry_type.is_dir() {
+            deferred_directories.push((entry_path, safe_mode));
+        } else if entry_type.is_file() {
+            apply_safe_mode(&extracted_path, safe_mode)?;
         }
     }
 
+    progress(format!(
+        "Creando {} enlaces simbólicos…",
+        deferred_symlinks.len()
+    ));
+    for (link_path, target) in deferred_symlinks {
+        let full_link_path = destination.join(&link_path);
+        let parent = full_link_path.parent().ok_or_else(invalid_archive_path)?;
+        fs::create_dir_all(parent)?;
+        create_symlink(&target, &full_link_path).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!(
+                    "failed to create symlink '{}': {error}",
+                    link_path.display()
+                ),
+            )
+        })?;
+    }
+
+    // Apply directory modes deepest-first, after all entries and links exist.
+    deferred_directories.sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
+    for (directory, mode) in deferred_directories {
+        apply_safe_mode(&destination.join(directory), mode)?;
+    }
+
+    progress(format!("Extracción terminada: {entry_count} entradas"));
     Ok(())
+}
+
+#[cfg(unix)]
+fn apply_safe_mode(path: &Path, mode: u32) -> io::Result<()> {
+    fs::set_permissions(path, fs::Permissions::from_mode(mode & 0o777))
+}
+
+#[cfg(not(unix))]
+fn apply_safe_mode(_path: &Path, _mode: u32) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_symlink(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn create_symlink(target: &Path, link: &Path) -> io::Result<()> {
+    if target.is_dir() {
+        std::os::windows::fs::symlink_dir(target, link)
+    } else {
+        std::os::windows::fs::symlink_file(target, link)
+    }
+}
+
+fn absolute_link_as_relative(link_path: &Path, target: &Path) -> io::Result<std::path::PathBuf> {
+    let target = target
+        .strip_prefix("/")
+        .map_err(|_| invalid_archive_path())?;
+    validate_archive_path(target)?;
+
+    let parent = link_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent_components: Vec<_> = parent
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect();
+    let target_components: Vec<_> = target
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect();
+
+    let common = parent_components
+        .iter()
+        .zip(target_components.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut relative = std::path::PathBuf::new();
+    for _ in common..parent_components.len() {
+        relative.push("..");
+    }
+    for component in target_components.iter().skip(common) {
+        relative.push(component);
+    }
+    if relative.as_os_str().is_empty() {
+        relative.push(".");
+    }
+    Ok(relative)
 }
 
 fn validate_archive_path(path: &Path) -> io::Result<()> {
@@ -183,6 +339,15 @@ mod tests {
             "ID=alpine\n"
         );
         fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn rewrites_absolute_linux_symlinks_to_safe_relative_targets() {
+        assert_eq!(
+            absolute_link_as_relative(Path::new("etc/mtab"), Path::new("/proc/self/mounts"),)
+                .unwrap(),
+            Path::new("../proc/self/mounts")
+        );
     }
 
     #[test]

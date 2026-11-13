@@ -18,6 +18,7 @@ on:
 permissions:
   contents: read
 
+
 jobs:
   check:
     name: Format, check, and test
@@ -30,6 +31,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
         run: cargo fmt --all -- --check

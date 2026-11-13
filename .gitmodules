@@ -1,0 +1,3 @@
+[submodule "android/x11server"]
+	path = android/x11server
+	url = https://github.com/nwrkbiz/android-xserver.git

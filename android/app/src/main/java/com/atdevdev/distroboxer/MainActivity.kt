@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,22 +36,37 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 
 private data class DistroUi(
     val id: String,
@@ -82,6 +98,7 @@ private enum class AppTab(val label: String, val symbol: String) {
     HOME("Inicio", "⌂"),
     DISTROS("Distros", "▦"),
     TERMINAL("Terminal", ">_"),
+    PROGRAMMING("Programar", "{ }"),
     DESKTOP("Escritorio", "▣"),
     SETTINGS("Ajustes", "⚙"),
 }
@@ -113,6 +130,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val crashReportFile = remember { File(filesDir, "last-crash.txt") }
+            var crashReport by remember {
+                mutableStateOf(crashReportFile.takeIf { it.isFile }?.readText().orEmpty())
+            }
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     primary = Color(0xFF62E6B7),
@@ -125,7 +146,37 @@ class MainActivity : ComponentActivity() {
                     onSurfaceVariant = Color(0xFFA4B5C8),
                 ),
             ) {
-                DistroBoxerScreen()
+                if (crashReport.isBlank()) {
+                    DistroBoxerScreen()
+                } else {
+                    // Keep the crashing screen out of composition until the report is read.
+                    AlertDialog(
+                        onDismissRequest = {
+                            crashReportFile.delete()
+                            crashReport = ""
+                        },
+                        title = { Text("Se detectó un cierre inesperado") },
+                        text = {
+                            Text(
+                                crashReport.takeLast(6000),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        confirmButton = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val clipboard = LocalClipboardManager.current
+                                TextButton(onClick = {
+                                    clipboard.setText(AnnotatedString(crashReport))
+                                }) { Text("Copiar error") }
+                                TextButton(onClick = {
+                                    crashReportFile.delete()
+                                    crashReport = ""
+                                }) { Text("Cerrar informe") }
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -134,19 +185,260 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
+    val runtimeAbi = Build.SUPPORTED_ABIS.firstOrNull { it == "arm64-v8a" || it == "x86_64" }
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
+    val prootRuntime = remember { ProotRuntime(context) }
+    var prootAvailable by remember { mutableStateOf(prootRuntime.isRuntimeAvailable()) }
+    var prootInstallStatus by remember {
+        mutableStateOf(if (prootAvailable) "PRoot ya está instalado." else "Preparando runtime PRoot…")
+    }
+    LaunchedEffect(runtimeAbi) {
+        if (!prootAvailable) {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val abi = runtimeAbi ?: error("Este dispositivo no tiene una ABI compatible.")
+                    prootRuntime.installBundledRuntime(abi)
+                    check(prootRuntime.isRuntimeAvailable()) { "El binario instalado no se puede ejecutar." }
+                }
+            }
+            prootAvailable = result.isSuccess
+            prootInstallStatus = result.exceptionOrNull()?.message
+                ?: "PRoot instalado y verificado para $runtimeAbi."
+        }
+    }
+    val x11Backend = remember { EmbeddedX11Backend() }
+    val x11Available = remember { x11Backend.isAvailable(context) }
+    var x11Running by remember { mutableStateOf(false) }
+    var x11ScreenView by remember { mutableStateOf<android.view.View?>(null) }
+    var x11Status by remember { mutableStateOf("Servidor X11 detenido") }
+    val workspace = remember(context) { ProjectWorkspace(context) }
+    val coroutineScope = rememberCoroutineScope()
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
+    var selectedDistroId by remember { mutableStateOf("alpine") }
     var search by remember { mutableStateOf("") }
+    var distroFilter by remember { mutableStateOf("all") }
+    var projectFileName by remember { mutableStateOf("main.py") }
+    var projectSource by remember {
+        mutableStateOf(
+            """print("Hola desde DistroBoxer!")
+for numero in range(1, 6):
+    print(f"Número: {numero}")""",
+        )
+    }
+    var projectStatus by remember { mutableStateOf("Ejemplo Python listo. Guarda el archivo en tu espacio de proyectos.") }
+    var terminalOutput by remember { mutableStateOf("DistroBoxer · Terminal Linux\nTodavía no hay una sesión activa.\n") }
+    var terminalCommand by remember { mutableStateOf("") }
+    var terminalStatus by remember { mutableStateOf("Sesión cerrada") }
+    var terminalSession by remember { mutableStateOf<TerminalSession?>(null) }
+    var terminalDisplay by remember { mutableStateOf<String?>(null) }
+
+    val currentTerminalSession by rememberUpdatedState(terminalSession)
+    DisposableEffect(prootRuntime, x11Backend) {
+        onDispose {
+            currentTerminalSession?.close()
+            prootRuntime.stop()
+            x11Backend.stop()
+        }
+    }
+
+    suspend fun refreshDistroStates() {
+        val latest = withContext(Dispatchers.IO) {
+            catalog.distros.associate { distro ->
+                val installed = prootRuntime.isDistroInstalled(distro.id)
+                val workInfos = runCatching {
+                    WorkManager.getInstance(context)
+                        .getWorkInfosForUniqueWork("distroboxer-install-${distro.id}")
+                        .get()
+                }.getOrDefault(mutableListOf())
+                val active = workInfos.any {
+                    it.state == WorkInfo.State.ENQUEUED ||
+                        it.state == WorkInfo.State.RUNNING ||
+                        it.state == WorkInfo.State.BLOCKED
+                }
+                val failed = workInfos.lastOrNull { it.state == WorkInfo.State.FAILED }
+                val completed = workInfos.lastOrNull { it.state == WorkInfo.State.SUCCEEDED }
+                val runningWork = workInfos.lastOrNull { it.state == WorkInfo.State.RUNNING }
+                val liveLog = runningWork?.progress?.getString(DistroRootfsInstallWorker.KEY_LIVE_LOG)
+                    ?: runningWork?.progress?.getInt(DistroArchiveDownloadWorker.KEY_PROGRESS, -1)
+                        ?.takeIf { it >= 0 }
+                        ?.let { "Descargando rootfs… $it%" }
+                val status = when {
+                    installed -> "Instalada · lista para abrir"
+                    active -> liveLog ?: "Descargando o instalando en segundo plano…"
+                    failed != null -> failed.outputData.getString(DistroArchiveDownloadWorker.KEY_ERROR)
+                        ?.let { "Error de instalación: $it" }
+                        ?: "La instalación falló. Puedes volver a intentarlo."
+                    completed != null -> "La tarea terminó, pero no se encontró un rootfs válido. Reintenta la instalación."
+                    else -> null
+                }
+                distro.id to (status to liveLog)
+            }
+        }
+        latest.forEach { (id, result) ->
+            val (status, liveLog) = result
+            if (status != null) storageStates[id] = status
+            else if (storageStates[id]?.contains("Instalada", ignoreCase = true) == true) {
+                storageStates.remove(id)
+            }
+            if (liveLog != null) {
+                val line = "[${id.uppercase()}] $liveLog"
+                if (!terminalOutput.endsWith(line + "\n")) {
+                    terminalOutput = (terminalOutput + line + "\n").takeLast(18000)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(selectedTab) {
+        refreshDistroStates()
+        if (selectedTab == AppTab.DISTROS || selectedTab == AppTab.TERMINAL) {
+            while (true) {
+                delay(2500)
+                refreshDistroStates()
+            }
+        }
+    }
+
+    suspend fun openLinuxShell(distroId: String = "alpine", display: String? = null): TerminalSession {
+        val current = terminalSession
+        if (current != null && current.isAlive() && terminalDisplay == display) return current
+        if (current != null) {
+            current.close()
+            terminalSession = null
+            prootRuntime.stop()
+        }
+        val process = withContext(Dispatchers.IO) { prootRuntime.startShell(distroId, display) }
+        val session = TerminalSession(
+            process = process,
+            onOutput = { chunk -> terminalOutput = (terminalOutput + chunk).takeLast(18000) },
+            onExit = { code ->
+                terminalStatus = "La shell terminó (código $code)"
+                terminalSession = null
+                terminalDisplay = null
+            },
+        )
+        terminalSession = session
+        terminalDisplay = display
+        terminalStatus = "Conectado a $distroId"
+        terminalOutput += "\n[ DistroBoxer: sesión iniciada en $distroId ]\n"
+        return session
+    }
+
+    fun selectDistroForTerminal(distroId: String) {
+        if (selectedDistroId != distroId && terminalSession?.isAlive() == true) {
+            terminalSession?.close()
+            terminalSession = null
+            terminalDisplay = null
+            prootRuntime.stop()
+            terminalStatus = "Sesión detenida al cambiar de distribución"
+            terminalOutput += "\n[ DistroBoxer: distribución cambiada ]\n"
+        }
+        selectedDistroId = distroId
+    }
+
+    fun startLinuxShell() {
+        coroutineScope.launch {
+            try {
+                check(prootRuntime.isDistroInstalled(selectedDistroId)) {
+                    "Instala primero ${selectedDistroId} desde la pestaña Distros."
+                }
+                openLinuxShell(selectedDistroId)
+            } catch (error: Exception) {
+                terminalStatus = "No se pudo iniciar"
+                terminalOutput += "\n[error] ${error.message ?: "No se pudo iniciar PRoot"}\n"
+            }
+        }
+    }
+
+    fun startX11() {
+        runCatching {
+            x11ScreenView = x11Backend.start(context)
+            x11Running = true
+            x11Status = "X11 activo en ${x11Backend.displayName()} · solo loopback"
+        }.onFailure {
+            x11Running = false
+            x11Status = "No se pudo iniciar X11: ${it.message}"
+        }
+    }
+
+    fun stopX11() {
+        x11Backend.stop()
+        x11ScreenView = null
+        x11Running = false
+        x11Status = "Servidor X11 detenido"
+    }
+
+    fun launchXfce() {
+        coroutineScope.launch {
+            try {
+                check(x11Running) { "Inicia primero el servidor X11." }
+                val session = openLinuxShell("alpine", x11Backend.displayName())
+                session.sendLine("startxfce4")
+                x11Status = "Comando startxfce4 enviado. Revisa la terminal si el escritorio no aparece."
+            } catch (error: Exception) {
+                x11Status = "No se pudo iniciar XFCE: ${error.message ?: "error desconocido"}. Comprueba que Alpine y XFCE estén instalados."
+            }
+        }
+    }
+
+    fun saveProject() {
+        runCatching { workspace.save(projectFileName, projectSource) }
+            .onSuccess { projectStatus = "Guardado: ${it.name}" }
+            .onFailure { projectStatus = "Error al guardar: ${it.message}" }
+    }
+
+    fun loadProject() {
+        runCatching { workspace.read(projectFileName) }
+            .onSuccess {
+                projectSource = it
+                projectStatus = "Proyecto cargado: " + projectFileName
+            }
+            .onFailure { projectStatus = "No se pudo abrir: " + it.message }
+    }
+
+    fun runProject() {
+        coroutineScope.launch {
+            try {
+                require(projectFileName.endsWith(".py", ignoreCase = true)) {
+                    "El ejemplo actual se ejecuta con Python; usa un archivo .py"
+                }
+                workspace.save(projectFileName, projectSource)
+                check(prootRuntime.isDistroInstalled("alpine")) { "Instala Alpine desde Distros antes de ejecutar Python." }
+                val session = openLinuxShell("alpine")
+                withContext(Dispatchers.IO) {
+                    prootRuntime.writeProjectFile("alpine", projectFileName, projectSource)
+                }
+                session.sendLine("python3 /root/projects/$projectFileName")
+                projectStatus = "Ejecutando $projectFileName en Alpine. Si Python falta, usa: apk add python3"
+                selectedTab = AppTab.TERMINAL
+            } catch (error: Exception) {
+                projectStatus = "No se pudo ejecutar: ${error.message ?: "error desconocido"}. Instala Alpine primero."
+            }
+        }
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
 
-    val filteredDistros = catalog.distros.filter {
-        it.name.contains(search, ignoreCase = true) ||
-            it.id.contains(search, ignoreCase = true) ||
-            it.packageManager.contains(search, ignoreCase = true)
+    val installedDistroIds = storageStates
+        .filterValues { it.contains("Instalada", ignoreCase = true) }
+        .keys
+    val filteredDistros = catalog.distros.filter { distro ->
+        val matchesSearch = search.isBlank() ||
+            distro.name.contains(search, ignoreCase = true) ||
+            distro.id.contains(search, ignoreCase = true) ||
+            distro.packageManager.contains(search, ignoreCase = true) ||
+            distro.description.contains(search, ignoreCase = true) ||
+            distro.bootstrap.contains(search, ignoreCase = true) ||
+            distro.archiveFormat.contains(search, ignoreCase = true)
+        val matchesFilter = when (distroFilter) {
+            "installed" -> distro.id in installedDistroIds
+            "available" -> distro.id !in installedDistroIds
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
 
     Scaffold(
@@ -213,11 +505,24 @@ private fun DistroBoxerScreen() {
                     installedCount = storageStates.values.count { it.contains("instalada", true) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
                     onOpenTerminal = { selectedTab = AppTab.TERMINAL },
+                    onOpenProgramming = { selectedTab = AppTab.PROGRAMMING },
+                    onOpenDesktop = { selectedTab = AppTab.DESKTOP },
                 )
                 AppTab.DISTROS -> {
-                    Text("Tus distribuciones", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Explora los entornos disponibles para tu dispositivo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Tus distribuciones", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Explora y administra tus entornos Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = { coroutineScope.launch { refreshDistroStates() } }) {
+                            Text("Actualizar")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = search,
                         onValueChange = { search = it },
@@ -226,13 +531,39 @@ private fun DistroBoxerScreen() {
                         shape = RoundedCornerShape(15.dp),
                         label = { Text("Buscar distro o gestor") },
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        FilterChip(selected = distroFilter == "all", onClick = { distroFilter = "all" }, label = { Text("Todas") })
+                        FilterChip(selected = distroFilter == "installed", onClick = { distroFilter = "installed" }, label = { Text("Instaladas") })
+                        FilterChip(selected = distroFilter == "available", onClick = { distroFilter = "available" }, label = { Text("Pendientes") })
+                    }
+                    Text(
+                        "${filteredDistros.size} de ${catalog.distros.size} distribuciones",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (filteredDistros.isEmpty()) {
+                            item {
+                                SectionCard(
+                                    title = "No hay resultados",
+                                    value = "Prueba otra búsqueda o filtro",
+                                    detail = "Cambia el texto de búsqueda o selecciona «Todas».",
+                                    good = false,
+                                )
+                            }
+                        }
                         items(filteredDistros, key = { it.id }) { distro ->
                             DistroCard(
                                 distro = distro,
                                 engineConnected = catalog.engineConnected,
                                 storageStatus = storageStates[distro.id],
+                                installed = storageStates[distro.id]?.contains("Instalada", ignoreCase = true) == true,
+                                onOpenTerminal = {
+                                    selectDistroForTerminal(distro.id)
+                                    selectedTab = AppTab.TERMINAL
+                                },
                                 onPrepare = {
                                     val prepared = runCatching {
                                         NativeBridge.nativePrepareDistro(distro.id, context.filesDir.absolutePath)
@@ -274,8 +605,57 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage()
-                AppTab.DESKTOP -> DesktopPage()
+                AppTab.TERMINAL -> TerminalPage(
+                    prootAvailable = prootAvailable,
+                    prootInstallStatus = prootInstallStatus,
+                    installedDistros = catalog.distros.filter {
+                        storageStates[it.id]?.contains("Instalada", ignoreCase = true) == true
+                    },
+                    selectedDistroId = selectedDistroId,
+                    onDistroSelected = { selectDistroForTerminal(it) },
+                    onOpenDistros = { selectedTab = AppTab.DISTROS },
+                    terminalOutput = terminalOutput,
+                    onClearOutput = { terminalOutput = "DistroBoxer · Registro limpiado.\n" },
+                    terminalCommand = terminalCommand,
+                    terminalStatus = terminalStatus,
+                    onCommandChange = { terminalCommand = it },
+                    onStartSession = { startLinuxShell() },
+                    onSendCommand = {
+                        val line = terminalCommand
+                        if (line.isNotBlank()) {
+                            runCatching { terminalSession?.sendLine(line) }
+                                .onFailure { terminalOutput += "\n[error] ${it.message}\n" }
+                            terminalCommand = ""
+                        }
+                    },
+                    onStopSession = {
+                        terminalSession?.close()
+                        terminalSession = null
+                        prootRuntime.stop()
+                        terminalStatus = "Sesión detenida"
+                        terminalOutput += "\n[ DistroBoxer: sesión detenida ]\n"
+                    },
+                )
+                AppTab.PROGRAMMING -> ProgrammingPage(
+                    fileName = projectFileName,
+                    source = projectSource,
+                    status = projectStatus,
+                    onFileNameChange = { projectFileName = it },
+                    onSourceChange = { projectSource = it },
+                    onLoad = { loadProject() },
+                    onSave = { saveProject() },
+                    onRun = { runProject() },
+                )
+                AppTab.DESKTOP -> DesktopPage(
+                    prootAvailable = prootAvailable,
+                    x11Available = x11Available,
+                    x11Running = x11Running,
+                    x11ScreenView = x11ScreenView,
+                    x11Status = x11Status,
+                    onStartX11 = { startX11() },
+                    onStopX11 = { stopX11() },
+                    onLaunchDesktop = { launchXfce() },
+                )
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
                     deviceAbi = deviceAbi,
@@ -300,6 +680,8 @@ private fun HomePage(
     installedCount: Int,
     onOpenDistros: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenProgramming: () -> Unit,
+    onOpenDesktop: () -> Unit,
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         item {
@@ -337,13 +719,21 @@ private fun HomePage(
         item {
             SectionCard(
                 title = "Terminal Linux",
-                value = "Próximamente",
-                detail = "La interfaz está preparada; falta integrar PRoot y las sesiones de shell.",
-                good = false,
+                value = if (installedCount > 0) "Lista para usar" else "Instala una distribución",
+                detail = if (installedCount > 0) {
+                    "Abre cualquiera de tus distribuciones instaladas y ejecuta comandos Linux."
+                } else {
+                    "Instala Alpine desde Distros. Después podrás abrir su shell PRoot desde aquí."
+                },
+                good = installedCount > 0,
             )
         }
         item {
-            Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Ver centro de terminal") }
+            Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Abrir terminal Linux") }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Código") }
+                Button(onClick = onOpenDesktop, modifier = Modifier.weight(1f)) { Text("Escritorio") }
+            }
         }
         item {
             Text("Hecho por Atdev Dev · Sin compras dentro de la app", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
@@ -383,6 +773,8 @@ private fun DistroCard(
     distro: DistroUi,
     engineConnected: Boolean,
     storageStatus: String?,
+    installed: Boolean,
+    onOpenTerminal: () -> Unit,
     onPrepare: () -> Unit,
     onInstall: () -> Unit,
 ) {
@@ -406,66 +798,220 @@ private fun DistroCard(
             Text("${distro.bootstrap} · ${distro.archiveFormat}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onPrepare, enabled = engineConnected) { Text("Preparar") }
-                if (distro.id == "alpine") {
+                Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar espacio") }
+                if (distro.id == "alpine" && !installed) {
                     Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
+                }
+                if (installed) {
+                    Button(onClick = onOpenTerminal) { Text("Abrir terminal") }
                 }
             }
             if (storageStatus != null) {
                 Spacer(Modifier.height(8.dp))
-                Text(storageStatus, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                Text(storageStatus, color = if (installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                if (storageStatus.contains("error", ignoreCase = true) ||
+                    storageStatus.contains("no se pudo", ignoreCase = true) ||
+                    storageStatus.contains("fall", ignoreCase = true) ||
+                    storageStatus.contains("incompatible", ignoreCase = true)
+                ) {
+                    CopyErrorButton(storageStatus)
+                }
+            }
+            if (distro.id != "alpine" && !installed) {
+                Text(
+                    "Instalador Android próximamente. «Preparar espacio» no descarga ni instala Linux.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TerminalPage() {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun TerminalPage(
+    prootAvailable: Boolean,
+    prootInstallStatus: String,
+    installedDistros: List<DistroUi>,
+    selectedDistroId: String,
+    onDistroSelected: (String) -> Unit,
+    onOpenDistros: () -> Unit,
+    terminalOutput: String,
+    onClearOutput: () -> Unit,
+    terminalCommand: String,
+    terminalStatus: String,
+    onCommandChange: (String) -> Unit,
+    onStartSession: () -> Unit,
+    onSendCommand: () -> Unit,
+    onStopSession: () -> Unit,
+) {
+    val selectedDistro = installedDistros.firstOrNull { it.id == selectedDistroId }
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Una terminal conectada a tus distribuciones instaladas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionCard(
+            title = "Runtime PRoot",
+            value = if (prootAvailable) "Instalado y verificado" else "No disponible",
+            detail = prootInstallStatus,
+            good = prootAvailable,
+        )
+        Text("Distribución", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (installedDistros.isEmpty()) {
+            Text("Todavía no hay distribuciones instaladas. Instala Alpine desde Distros para abrir tu primera shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onOpenDistros, modifier = Modifier.fillMaxWidth()) { Text("Ir a Distros") }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                installedDistros.forEach { distro ->
+                    FilterChip(
+                        selected = selectedDistroId == distro.id,
+                        onClick = { onDistroSelected(distro.id) },
+                        label = { Text(distro.name) },
+                    )
+                }
+            }
+        }
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.padding(17.dp)) {
+            Column(Modifier.padding(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("●  ●  ●", color = Color(0xFF62E6B7))
                     Spacer(Modifier.weight(1f))
-                    Text("DISTROBOXER SHELL", color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
+                    Text(terminalStatus.uppercase(), color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
                 }
-                Spacer(Modifier.height(22.dp))
-                Text("Atdev Dev · DistroBoxer", color = Color(0xFF62E6B7), fontWeight = FontWeight.Bold)
-                Text("No hay ninguna sesión Linux activa.", color = Color(0xFFC1D0C9))
-                Spacer(Modifier.height(8.dp))
-                Text("Cuando el runtime esté integrado, aquí podrás:", color = Color(0xFF9FB7AA))
-                Text("  • Abrir una shell interactiva", color = Color(0xFF9FB7AA))
-                Text("  • Cambiar entre distribuciones", color = Color(0xFF9FB7AA))
-                Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
-                Spacer(Modifier.height(12.dp))
-                Text("\$  runtime status", color = Color(0xFF62E6B7))
-                Text("  PRoot: pendiente · X11: pendiente", color = Color(0xFFFFC078))
+                Spacer(Modifier.height(10.dp))
+                Text(terminalOutput, color = Color(0xFFD5E8DD), style = MaterialTheme.typography.bodySmall)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    val clipboard = LocalClipboardManager.current
+                    TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(terminalOutput))
+                    }) { Text("Copiar registro") }
+                    TextButton(onClick = onClearOutput) { Text("Limpiar") }
+                }
             }
         }
-        SectionCard(
-            title = "Sesiones en segundo plano",
-            value = "Runtime pendiente",
-            detail = "El trabajo en segundo plano actual cubre descargas. Las sesiones Linux necesitarán un servicio persistente y controles para detenerlas.",
-            good = false,
+        OutlinedTextField(
+            value = terminalCommand,
+            onValueChange = onCommandChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Comando Linux") },
+            placeholder = { Text(if (selectedDistro?.id == "alpine") "apk add python3" else "ls -la") },
+            shape = RoundedCornerShape(14.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Button(
+                onClick = onStartSession,
+                enabled = prootAvailable && selectedDistro != null && !terminalStatus.startsWith("Conectado"),
+            ) { Text(if (selectedDistro == null) "Sin distro" else "Iniciar ${selectedDistro.name}") }
+            Button(onClick = onSendCommand, enabled = terminalStatus.startsWith("Conectado")) { Text("Ejecutar") }
+            Button(onClick = onStopSession, enabled = terminalStatus.startsWith("Conectado")) { Text("Detener") }
+        }
+        Text(
+            "Los comandos se ejecutan dentro de la distribución seleccionada. La sesión permanece activa mientras la app está abierta.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
 
 
 @Composable
-private fun DesktopPage() {
+private fun ProgrammingPage(
+    fileName: String,
+    source: String,
+    status: String,
+    onFileNameChange: (String) -> Unit,
+    onSourceChange: (String) -> Unit,
+    onLoad: () -> Unit,
+    onSave: () -> Unit,
+    onRun: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Programar", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Un espacio para escribir y ejecutar código dentro de Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = fileName,
+            onValueChange = onFileNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Archivo Python (.py)") },
+            shape = RoundedCornerShape(14.dp),
+        )
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1420)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text("EDITOR · PYTHON", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = source,
+                    onValueChange = onSourceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 10,
+                    maxLines = 18,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    label = { Text("Código fuente") },
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Button(onClick = onLoad) { Text("Abrir") }
+            Button(onClick = onSave) { Text("Guardar") }
+        }
+        Button(onClick = onRun, modifier = Modifier.fillMaxWidth()) {
+            Text("▶ Ejecutar en Linux")
+        }
+        Text(status, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+        SectionCard(
+            title = "Flujo de trabajo",
+            value = "Editor → archivo → PRoot → Python",
+            detail = "Guarda el código en el espacio privado de DistroBoxer. Al ejecutarlo, se copia a /root/projects dentro de Alpine y se lanza desde la terminal.",
+            good = true,
+        )
+        if (status.contains("error", ignoreCase = true) ||
+            status.contains("no se pudo", ignoreCase = true) ||
+            status.contains("fall", ignoreCase = true)
+        ) {
+            CopyErrorButton(status)
+        }
+        Text(
+            "Antes de ejecutar Python por primera vez, instala el intérprete desde la terminal con: apk add python3",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+
+@Composable
+private fun DesktopPage(
+    prootAvailable: Boolean,
+    x11Available: Boolean,
+    x11Running: Boolean,
+    x11ScreenView: android.view.View?,
+    x11Status: String,
+    onStartX11: () -> Unit,
+    onStopX11: () -> Unit,
+    onLaunchDesktop: () -> Unit,
+) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
         Text("Escritorios Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Entornos gráficos sobre X11", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Servidor X11 integrado en DistroBoxer", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
@@ -476,30 +1022,67 @@ private fun DesktopPage() {
                 Text("X11 + PRoot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "DistroBoxer necesitará un servidor gráfico Android, un socket X11 compartido con el contenedor y un gestor de sesiones para iniciar el escritorio.",
+                    "El servidor X11 se ejecuta dentro de DistroBoxer y muestra su pantalla en esta vista. PRoot conecta las aplicaciones Linux al display local 127.0.0.1:1.",
                     color = Color(0xFFC4D5DF),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Spacer(Modifier.height(9.dp))
-                Text("Estado: integración en diseño", color = Color(0xFFFFC078), fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "PRoot: " + (if (prootAvailable) "instalado" else "pendiente") +
+                        " · X11: " + (if (x11Available) "integrado" else "no disponible"),
+                    color = if (x11Available && prootAvailable) MaterialTheme.colorScheme.primary else Color(0xFFFFC078),
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(x11Status, color = Color(0xFFC4D5DF), style = MaterialTheme.typography.bodySmall)
+                if (x11Status.contains("no se pudo", ignoreCase = true) ||
+                    x11Status.contains("error", ignoreCase = true)
+                ) {
+                    CopyErrorButton(x11Status)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onStartX11, enabled = x11Available && !x11Running) { Text("Iniciar X11") }
+                    Button(onClick = onStopX11, enabled = x11Running) { Text("Detener") }
+                }
             }
         }
-        DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primera opción para móviles y equipos modestos", "PRIMER OBJETIVO")
-        DesktopEnvironmentCard("LXQt", "Ligero y modular", "Alternativa con bajo consumo de recursos", "PLANIFICADO")
-        DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional con paneles y menú", "PLANIFICADO")
+        val activeView = x11ScreenView
+        if (x11Running && activeView != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Black),
+            ) {
+                AndroidView(
+                    factory = { activeView },
+                    modifier = Modifier.fillMaxWidth().height(430.dp),
+                )
+            }
+            Button(
+                onClick = onLaunchDesktop,
+                enabled = prootAvailable,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Iniciar sesión XFCE")
+            }
+        }
+        DesktopEnvironmentCard("XFCE", "Ligero y completo", "Primer escritorio que probaremos en el display integrado", "EXPERIMENTAL")
+        DesktopEnvironmentCard("LXQt", "Ligero y modular", "Alternativa para una etapa posterior", "PLANIFICADO")
+        DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional para una etapa posterior", "PLANIFICADO")
         SectionCard(
-            title = "Cómo funcionará",
-            value = "X server → PRoot → escritorio",
-            detail = "El servidor X11 dibuja la interfaz; PRoot ejecuta los procesos Linux sin root; XFCE/LXQt/MATE son los escritorios que se muestran.",
+            title = "Conexión",
+            value = "127.0.0.1:1 · puerto 6001",
+            detail = "El listener X11 está limitado a loopback; no acepta conexiones desde la red Wi-Fi. El motor Java es ligero y no garantiza GLX ni compatibilidad total con todos los escritorios.",
             good = true,
         )
         Text(
-            "No se necesita pagar por los escritorios. DistroBoxer será gratuito; cada entorno se descargará desde los repositorios oficiales de su distribución.",
+            "Para iniciar XFCE necesitas tener Alpine instalado y el escritorio instalado dentro de esa distribución. En Alpine puedes probar desde Terminal: apk update && apk add xfce4 dbus. La compatibilidad del escritorio debe validarse en el teléfono.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
+
 
 @Composable
 private fun DesktopEnvironmentCard(name: String, subtitle: String, detail: String, status: String) {
@@ -547,5 +1130,16 @@ private fun SettingsPage(
         SectionCard("Privacidad", "Almacenamiento privado", "Las distribuciones se guardan dentro del espacio privado de DistroBoxer. No se solicita acceso general a tus archivos.", true)
         SectionCard("Modelo de la app", "Gratis y de código abierto", "Sin anuncios, suscripciones ni compras integradas previstas.", true)
         Text("DistroBoxer · Atdev Dev · Versión 0.3.0", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+ 
+@Composable
+private fun CopyErrorButton(errorText: String) {
+    val clipboard = LocalClipboardManager.current
+    TextButton(
+        onClick = { clipboard.setText(AnnotatedString(errorText)) },
+    ) {
+        Text("Copiar error")
     }
 }

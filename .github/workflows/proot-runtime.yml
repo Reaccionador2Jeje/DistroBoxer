@@ -1,0 +1,226 @@
+name: Build Android PRoot runtime
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NDK_VERSION: r29
+  PROOT_CACHE_VERSION: "1"
+  ANDROID_API: "26"
+  TALLOC_VERSION: "2.4.4"
+  TALLOC_SHA256: "55e47994018c13743485544e7206780ffbb3c8495e704a99636503e6e77abf59"
+  PROOT_COMMIT: "52d65a4dc140ca554d241a1438ddd4f6b00c9813"
+
+jobs:
+  build:
+    name: Build PRoot (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            target: aarch64-linux-android
+            machine: AArch64
+          - abi: x86_64
+            target: x86_64-linux-android
+            machine: Advanced Micro Devices X86-64
+
+    steps:
+      - name: Checkout pinned Termux PRoot source
+        uses: actions/checkout@v5
+        with:
+          repository: termux/proot
+          ref: ${{ env.PROOT_COMMIT }}
+          path: proot
+          fetch-depth: 1
+
+      - name: Restore compiled PRoot binary cache
+        id: proot-cache
+        uses: actions/cache@v4
+        with:
+          path: proot/src/proot
+          key: proot-${{ env.PROOT_CACHE_VERSION }}-${{ matrix.abi }}-${{ env.PROOT_COMMIT }}-${{ env.NDK_VERSION }}-${{ env.TALLOC_VERSION }}-${{ env.TALLOC_SHA256 }}
+
+      - name: Download Android NDK
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/android-ndk"
+          cd "$RUNNER_TEMP/android-ndk"
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --retry-max-time 300 \
+            "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip" \
+            --output ndk.zip
+          unzip -q ndk.zip
+          rm ndk.zip
+          NDK_DIR="$(find "$RUNNER_TEMP/android-ndk" -maxdepth 1 -type d -name 'android-ndk-*' -print -quit)"
+          test -n "$NDK_DIR"
+          echo "ANDROID_NDK=$NDK_DIR" >> "$GITHUB_ENV"
+          echo "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Android cross compiler
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          TOOLCHAIN="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64"
+          echo "CC=$TOOLCHAIN/bin/${{ matrix.target }}${ANDROID_API}-clang" >> "$GITHUB_ENV"
+          echo "AR=$TOOLCHAIN/bin/llvm-ar" >> "$GITHUB_ENV"
+          echo "RANLIB=$TOOLCHAIN/bin/llvm-ranlib" >> "$GITHUB_ENV"
+          echo "STRIP=$TOOLCHAIN/bin/llvm-strip" >> "$GITHUB_ENV"
+          echo "READELF=$TOOLCHAIN/bin/llvm-readelf" >> "$GITHUB_ENV"
+          echo "CFLAGS=-O2 -fdata-sections -ffunction-sections" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-Wl,--gc-sections -Wl,-z,noexecstack" >> "$GITHUB_ENV"
+
+      - name: Download and verify talloc source
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --retry-max-time 300 \
+            "https://download.samba.org/pub/talloc/talloc-${TALLOC_VERSION}.tar.gz" \
+            --output talloc.tar.gz
+          echo "${TALLOC_SHA256}  talloc.tar.gz" | sha256sum --check -
+          tar -xzf talloc.tar.gz
+          mv "talloc-${TALLOC_VERSION}" "$RUNNER_TEMP/talloc"
+
+      - name: Build static talloc
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}/talloc
+        run: |
+          set -euo pipefail
+          cat > cross-answers.txt <<'EOF'
+          Checking uname sysname type: "Linux"
+          Checking uname machine type: "dontcare"
+          Checking uname release type: "dontcare"
+          Checking uname version type: "dontcare"
+          Checking simple C program: OK
+          building library support: OK
+          Checking for large file support: OK
+          Checking for -D_FILE_OFFSET_BITS=64: OK
+          Checking for WORDS_BIGENDIAN: OK
+          Checking for C99 vsnprintf: OK
+          Checking for HAVE_SECURE_MKSTEMP: OK
+          rpath library support: OK
+          -Wl,--version-script support: FAIL
+          Checking correct behavior of strtoll: OK
+          Checking correct behavior of strptime: OK
+          Checking for HAVE_IFACE_GETIFADDRS: OK
+          Checking for HAVE_IFACE_IFCONF: OK
+          Checking for HAVE_IFACE_IFREQ: OK
+          Checking getconf LFS_CFLAGS: OK
+          Checking for large file support without additional flags: OK
+          Checking for working strptime: OK
+          Checking for HAVE_SHARED_MMAP: OK
+          Checking for HAVE_MREMAP: OK
+          Checking for HAVE_INCOHERENT_MMAP: OK
+          Checking getconf large file support flags work: OK
+          EOF
+          CC="$CC" CFLAGS="$CFLAGS" ./configure \
+            --cross-compile \
+            --cross-answers=cross-answers.txt \
+            --disable-python \
+            --disable-rpath
+          make -j2
+          cd bin/default
+          "$AR" rcs libtalloc.a talloc*.o
+          "$RANLIB" libtalloc.a
+          test -s libtalloc.a
+
+      - name: Build PRoot for Android
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          if ! grep -q '^#include <string.h>' proot/src/extension/ashmem_memfd/ashmem_memfd.c; then
+            sed -i '1i#include <string.h>' proot/src/extension/ashmem_memfd/ashmem_memfd.c
+          fi
+          sed -i "s|-ltalloc|$RUNNER_TEMP/talloc/bin/default/libtalloc.a|" proot/src/GNUmakefile
+          grep -F 'libtalloc.a' proot/src/GNUmakefile
+
+          # GNU objdump on the x86_64 runner cannot identify AArch64 objects.
+          # Use the NDK's multi-architecture LLVM binutils for both ARM loaders.
+          LLVM_BIN="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          mkdir -p "$RUNNER_TEMP/llvm-bin"
+          ln -sf "$LLVM_BIN/llvm-objdump" "$RUNNER_TEMP/llvm-bin/objdump"
+          ln -sf "$LLVM_BIN/llvm-objcopy" "$RUNNER_TEMP/llvm-bin/objcopy"
+          export PATH="$RUNNER_TEMP/llvm-bin:$PATH"
+
+          make -C proot/src -j2 \
+            CC="$CC" \
+            CFLAGS="$CFLAGS -DARG_MAX=131072 -I$RUNNER_TEMP/talloc" \
+            LDFLAGS="$LDFLAGS $RUNNER_TEMP/talloc/bin/default/libtalloc.a" \
+            V=1 proot
+          test -s proot/src/proot
+          "$STRIP" proot/src/proot
+
+      - name: Verify Android ELF and dependencies
+        run: |
+          set -euo pipefail
+          readelf -h proot/src/proot | tee elf-header.txt
+          grep -F "Machine:" elf-header.txt | grep -F "${{ matrix.machine }}"
+          readelf -d proot/src/proot | tee dynamic-section.txt
+          if grep -E 'NEEDED.*(libtalloc|libpython|libc\\+\\+_shared)' dynamic-section.txt; then
+            echo "Unexpected non-system runtime dependency found"
+            exit 1
+          fi
+          file proot/src/proot
+
+      - name: Package PRoot binary and license
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/proot-${{ matrix.abi }}"
+          install -m 755 proot/src/proot "dist/proot-${{ matrix.abi }}/proot"
+          install -m 644 proot/COPYING "dist/proot-${{ matrix.abi }}/COPYING-PROOT"
+          cat > "dist/proot-${{ matrix.abi }}/BUILD-INFO.txt" <<EOF
+          DistroBoxer Android PRoot runtime
+          ABI: ${{ matrix.abi }}
+          Source: https://github.com/termux/proot
+          Source commit: ${PROOT_COMMIT}
+          talloc: ${TALLOC_VERSION} (static)
+          Android API: ${ANDROID_API}
+          PRoot does not grant real root privileges.
+          EOF
+          (cd "dist/proot-${{ matrix.abi }}" && sha256sum proot > SHA256SUMS)
+          cd dist
+          zip -9 -r "proot-${{ matrix.abi }}.zip" "proot-${{ matrix.abi }}"
+
+      - name: Upload ABI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proot-${{ matrix.abi }}
+          path: dist/proot-${{ matrix.abi }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  bundle:
+    name: Bundle Android PRoot binaries
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download both ABI builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: proot-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate bundle checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          ls -lh *.zip
+          sha256sum *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload combined runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: DistroBoxer-PRoot-Android
+          path: |
+            dist/proot-arm64-v8a.zip
+            dist/proot-x86_64.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
