@@ -49,7 +49,6 @@ class ProotRuntime(context: Context) {
         // alterados por el proceso de extracción o por el sistema de archivos.
         // Reparamos únicamente los ejecutables de arranque, tras resolver sus
         // symlinks y comprobar que siguen dentro del rootfs privado.
-        ensureGuestExecutable(rootfs, "usr/bin/env")
         ensureGuestExecutable(rootfs, "bin/sh")
         // PRoot crea archivos auxiliares en este directorio del host Android.
         // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
