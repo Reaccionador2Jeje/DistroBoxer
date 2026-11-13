@@ -505,6 +505,8 @@ for numero in range(1, 6):
                     installedCount = storageStates.values.count { it.contains("instalada", true) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
                     onOpenTerminal = { selectedTab = AppTab.TERMINAL },
+                    onOpenProgramming = { selectedTab = AppTab.PROGRAMMING },
+                    onOpenDesktop = { selectedTab = AppTab.DESKTOP },
                 )
                 AppTab.DISTROS -> {
                     Row(
@@ -613,6 +615,7 @@ for numero in range(1, 6):
                     onDistroSelected = { selectDistroForTerminal(it) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
                     terminalOutput = terminalOutput,
+                    onClearOutput = { terminalOutput = "DistroBoxer · Registro limpiado.\\n" },
                     terminalCommand = terminalCommand,
                     terminalStatus = terminalStatus,
                     onCommandChange = { terminalCommand = it },
@@ -677,6 +680,8 @@ private fun HomePage(
     installedCount: Int,
     onOpenDistros: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenProgramming: () -> Unit,
+    onOpenDesktop: () -> Unit,
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         item {
@@ -724,7 +729,11 @@ private fun HomePage(
             )
         }
         item {
-            Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Ver centro de terminal") }
+            Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Abrir terminal Linux") }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Programación") }
+                Button(onClick = onOpenDesktop, modifier = Modifier.weight(1f)) { Text("Escritorio X11") }
+            }
         }
         item {
             Text("Hecho por Atdev Dev · Sin compras dentro de la app", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
@@ -828,6 +837,7 @@ private fun TerminalPage(
     onDistroSelected: (String) -> Unit,
     onOpenDistros: () -> Unit,
     terminalOutput: String,
+    onClearOutput: () -> Unit,
     terminalCommand: String,
     terminalStatus: String,
     onCommandChange: (String) -> Unit,
@@ -881,6 +891,7 @@ private fun TerminalPage(
                     TextButton(onClick = {
                         clipboard.setText(AnnotatedString(terminalOutput))
                     }) { Text("Copiar registro") }
+                    TextButton(onClick = onClearOutput) { Text("Limpiar") }
                 }
             }
         }
