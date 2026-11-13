@@ -45,6 +45,12 @@ class ProotRuntime(context: Context) {
         require(isRuntimeAvailable()) { "El ejecutable PRoot todavía no está instalado" }
 
         val rootfs = resolveRootfs(distroId)
+        // Algunos rootfs pueden llegar con los bits ejecutables de BusyBox/env
+        // alterados por el proceso de extracción o por el sistema de archivos.
+        // Reparamos únicamente los ejecutables de arranque, tras resolver sus
+        // symlinks y comprobar que siguen dentro del rootfs privado.
+        ensureGuestExecutable(rootfs, "usr/bin/env")
+        ensureGuestExecutable(rootfs, "bin/sh")
         // PRoot crea archivos auxiliares en este directorio del host Android.
         // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
         val prootTempDirectory = prepareProotTempDirectory()
@@ -92,6 +98,26 @@ class ProotRuntime(context: Context) {
 
         activeProcess = process
         return process
+    }
+
+    /**
+     * Comprueba un ejecutable del invitado y restaura su bit de ejecución si falta.
+     * Los enlaces simbólicos se resuelven antes de cambiar permisos para evitar
+     * modificar rutas que apunten fuera del rootfs de la distribución.
+     */
+    private fun ensureGuestExecutable(rootfs: File, relativePath: String) {
+        val root = rootfs.canonicalFile
+        val entry = File(root, relativePath)
+        val target = entry.canonicalFile
+        check(target.toPath().startsWith(root.toPath()) && target.isFile) {
+            "El ejecutable Linux /$relativePath no existe o apunta fuera del rootfs."
+        }
+        if (!target.canExecute()) {
+            check(target.setExecutable(true, false) && target.canExecute()) {
+                "No se pudieron restaurar los permisos de ejecución de /$relativePath. " +
+                    "Comprueba el sistema de archivos y vuelve a instalar Alpine si el rootfs está incompleto."
+            }
+        }
     }
 
     /**
