@@ -68,6 +68,8 @@ done
 # and resolved from LD_LIBRARY_PATH set by QemuRuntime.
 for ELF in "$ABI_DIR"/*; do
     [[ -f "$ELF" ]] || continue
+    # BUILD-INFO and SHA256SUMS are text assets, not ELF payloads.
+    readelf -h "$ELF" >/dev/null 2>&1 || continue
     readelf -h "$ELF" | grep -q 'AArch64'
     if readelf -l "$ELF" | grep -q 'Requesting program interpreter'; then
         readelf -l "$ELF" | grep -q '/system/bin/linker64'
