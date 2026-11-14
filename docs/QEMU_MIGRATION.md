@@ -27,7 +27,7 @@ These are executable payloads, not JNI libraries. The build pipeline must compil
 ## Migration phases
 
 1. **Runtime API and private VM storage** — implemented: ABI payload discovery, safe VM IDs and paths, kernel/initrd import, QCOW2 creation, TCG launch, serial stdio, loopback-only optional VNC, and stop/status.
-2. **Reproducible QEMU Android build** — build QEMU for Android ARM64 (then x86_64), pin all source/dependency revisions, package executable payloads, and verify ELF/dependencies in CI.
+2. **Reproducible QEMU Android build** — initial ARM64 build recipe and reusable GitHub Actions workflow added. It builds QEMU System + qemu-img with TCG, libslirp user networking, and headless VNC support using a pinned QEMU source archive and Termux Android cross-build toolchain. CI packages the executable assets and recursively collects non-platform shared libraries. First successful workflow run is still required before the binaries can be considered verified.
 3. **Terminal UI integration** — initial controls implemented: import kernel/initrd, create a 12 GiB QCOW2 disk, start/stop QEMU, toggle optional loopback VNC, and attach serial stdio to the existing terminal. General VM profiles, disk sizing UI, and VNC viewer remain.
 4. **Guest provisioning** — provide a supported bootable Linux kernel/initramfs + disk installation flow. Do not reuse the current Alpine rootfs tarball as if it were a boot disk.
 5. **Optional VNC client** — connect only to the local VNC endpoint and validate touch/keyboard input.
@@ -47,4 +47,4 @@ These are executable payloads, not JNI libraries. The build pipeline must compil
 
 ## Current limitations
 
-The first implementation supplies the QEMU runtime API and initial terminal VM controls. It does not yet bundle QEMU executables, a guest kernel/initramfs, or a VNC viewer. Consequently, QEMU cannot yet boot a guest from this commit alone. PRoot remains in place intentionally until the acceptance gates pass.
+The source tree now contains a reproducible ARM64 QEMU build workflow and asset loader, but the generated executables are not committed to Git; Android CI builds them as an artifact and injects them into the APK. Until that workflow completes successfully and the APK is tested on a physical device, QEMU is not considered verified. A guest kernel/initramfs and a VNC viewer are still not bundled. PRoot remains in place intentionally until the acceptance gates pass.
