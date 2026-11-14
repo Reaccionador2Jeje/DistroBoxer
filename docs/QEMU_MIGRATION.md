@@ -26,9 +26,9 @@ These are executable payloads, not JNI libraries. The build pipeline must compil
 
 ## Migration phases
 
-1. **Runtime API and private VM storage** — implemented in `QemuRuntime.kt`: ABI payload discovery, safe VM IDs and paths, kernel/initrd import, QCOW2 creation, TCG launch, serial stdio, loopback-only optional VNC, and stop/status.
+1. **Runtime API and private VM storage** — implemented: ABI payload discovery, safe VM IDs and paths, kernel/initrd import, QCOW2 creation, TCG launch, serial stdio, loopback-only optional VNC, and stop/status.
 2. **Reproducible QEMU Android build** — build QEMU for Android ARM64 (then x86_64), pin all source/dependency revisions, package executable payloads, and verify ELF/dependencies in CI.
-3. **Terminal UI integration** — add VM creation, kernel/initrd selection, disk sizing, start/stop controls, and attach the serial process to the existing terminal.
+3. **Terminal UI integration** — initial controls implemented: import kernel/initrd, create a 12 GiB QCOW2 disk, start/stop QEMU, toggle optional loopback VNC, and attach serial stdio to the existing terminal. General VM profiles, disk sizing UI, and VNC viewer remain.
 4. **Guest provisioning** — provide a supported bootable Linux kernel/initramfs + disk installation flow. Do not reuse the current Alpine rootfs tarball as if it were a boot disk.
 5. **Optional VNC client** — connect only to the local VNC endpoint and validate touch/keyboard input.
 6. **Physical-device acceptance** — test cold boot, terminal input/output, networking, disk persistence, stop/restart, memory pressure, and Android process lifecycle.
@@ -47,4 +47,4 @@ These are executable payloads, not JNI libraries. The build pipeline must compil
 
 ## Current limitations
 
-The first implementation supplies the QEMU runtime API only. It does not yet bundle QEMU executables, boot firmware, a guest kernel/initramfs, a VNC viewer, or a complete VM creation UI. Consequently, QEMU cannot yet boot a guest from this commit alone. PRoot remains in place intentionally until the acceptance gates pass.
+The first implementation supplies the QEMU runtime API and initial terminal VM controls. It does not yet bundle QEMU executables, a guest kernel/initramfs, or a VNC viewer. Consequently, QEMU cannot yet boot a guest from this commit alone. PRoot remains in place intentionally until the acceptance gates pass.
