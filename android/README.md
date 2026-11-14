@@ -21,7 +21,7 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 ## Known limitations
 
 - Alpine is currently the only Android rootfs installation path; other catalog distributions are not yet installable end-to-end.
-- QEMU executables (`qemu-system-aarch64`, `qemu-system-x86_64`, `qemu-img`), a reproducible Android build pipeline, guest kernel/initramfs provisioning, and the QEMU VM UI are not yet integrated. The new runtime API cannot boot until those artifacts are supplied.
+- QEMU executables (`qemu-system-aarch64`, `qemu-system-x86_64`, `qemu-img`), a reproducible Android build pipeline, guest kernel/initramfs provisioning, and a VNC viewer are not yet integrated. The Terminal page now has initial kernel/initrd import, QCOW2 creation, VM start/stop, optional loopback VNC, and serial-console controls, but QEMU cannot boot until its binaries and matching guest boot files are supplied.
 - The existing PRoot shell remains the currently wired terminal path during this migration.
 - Python must be installed inside Alpine before running Python projects (for example, `apk add python3`).
 - A persistent foreground service for long-running Linux sessions is not implemented.
