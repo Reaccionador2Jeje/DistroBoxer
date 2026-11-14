@@ -4,7 +4,7 @@
 
 `android/app/src/main/java/com/atdevdev/distroboxer/QemuRuntime.kt` introduces the first QEMU runtime API. It keeps VM state under `filesDir/qemu/vms/<vm-id>`, imports only fixed-name kernel/initrd files into private storage, creates sparse QCOW2 disks with `qemu-img`, and launches QEMU System with TCG, a serial stdio console, virtio disk/network devices, and optional VNC bound to `127.0.0.1` only.
 
-The Android package does not yet contain QEMU executables or a bootable guest kernel/initramfs. The Terminal page has initial kernel/initrd import, QCOW2 creation, VM start/stop, optional loopback VNC, and serial-console controls. The reproducible binary packaging workflow, guest provisioning, VNC viewer, and physical-device validation remain required. The existing PRoot runtime stays in place until all migration acceptance gates pass. See [QEMU migration](../docs/QEMU_MIGRATION.md).
+The reusable `.github/workflows/qemu-runtime.yml` workflow builds pinned QEMU 11.1.3 for Android ARM64 using the Termux Android cross-build system. It verifies the QEMU source checksum, ELF ABI, Android linker, shared-library dependency closure, and runtime checksums before publishing an artifact that Android CI injects into APK assets. `QemuRuntime` extracts those assets into app-private storage and sets `LD_LIBRARY_PATH` for QEMU processes. The first successful workflow run and physical-device validation are still required. Guest kernel/initramfs provisioning and a VNC viewer remain pending. PRoot stays available until all migration acceptance gates pass. See [QEMU migration](../docs/QEMU_MIGRATION.md).
 
 
 ## Android PRoot
