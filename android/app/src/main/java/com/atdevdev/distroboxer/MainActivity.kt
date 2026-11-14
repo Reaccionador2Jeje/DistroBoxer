@@ -405,10 +405,10 @@ for numero in range(1, 6):
                 } else {
                     "QEMU iniciado · consola serial activa"
                 }
-                terminalOutput += "\\n[ DistroBoxer: máquina virtual QEMU iniciada ]\\n"
+                terminalOutput += "\n[ DistroBoxer: máquina virtual QEMU iniciada ]\n"
             } catch (error: Exception) {
                 qemuVmStatus = "No se pudo iniciar QEMU: ${error.message}"
-                terminalOutput += "\\n[QEMU] ${error.message}\\n"
+                terminalOutput += "\n[QEMU] ${error.message}\n"
             }
         }
     }
@@ -971,7 +971,9 @@ private fun TerminalPage(
                     Button(onClick = onStartQemu, enabled = qemuAvailable && qemuDiskReady && qemuBootReady && !qemuVmRunning) {
                         Text("Iniciar VM")
                     }
-                    Button(onClick = onStopSession, enabled = qemuVmRunning) { Text("Detener VM") }
+                }
+                Button(onClick = onStopSession, enabled = qemuVmRunning, modifier = Modifier.fillMaxWidth()) {
+                    Text("Detener VM QEMU")
                 }
                 FilterChip(
                     selected = qemuVncEnabled,
