@@ -189,6 +189,9 @@ private fun DistroBoxerScreen() {
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
     val prootRuntime = remember { ProotRuntime(context) }
+    // QEMU is the target primary VM engine; PRoot remains legacy until QEMU is packaged and device-tested.
+    val qemuRuntime = remember(context) { QemuRuntime(context) }
+    val qemuAvailable = remember { qemuRuntime.isRuntimeAvailable() }
     var prootAvailable by remember { mutableStateOf(prootRuntime.isRuntimeAvailable()) }
     var prootInstallStatus by remember {
         mutableStateOf(if (prootAvailable) "PRoot ya está instalado." else "Preparando runtime PRoot…")
@@ -235,10 +238,11 @@ for numero in range(1, 6):
     var terminalDisplay by remember { mutableStateOf<String?>(null) }
 
     val currentTerminalSession by rememberUpdatedState(terminalSession)
-    DisposableEffect(prootRuntime, x11Backend) {
+    DisposableEffect(prootRuntime, qemuRuntime, x11Backend) {
         onDispose {
             currentTerminalSession?.close()
             prootRuntime.stop()
+            qemuRuntime.stop()
             x11Backend.stop()
         }
     }
@@ -606,6 +610,7 @@ for numero in range(1, 6):
                     }
                 }
                 AppTab.TERMINAL -> TerminalPage(
+                    qemuAvailable = qemuAvailable,
                     prootAvailable = prootAvailable,
                     prootInstallStatus = prootInstallStatus,
                     installedDistros = catalog.distros.filter {
@@ -830,6 +835,7 @@ private fun DistroCard(
 
 @Composable
 private fun TerminalPage(
+    qemuAvailable: Boolean,
     prootAvailable: Boolean,
     prootInstallStatus: String,
     installedDistros: List<DistroUi>,
@@ -853,7 +859,13 @@ private fun TerminalPage(
         Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Una terminal conectada a tus distribuciones instaladas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         SectionCard(
-            title = "Runtime PRoot",
+            title = "QEMU System · motor principal",
+            value = if (qemuAvailable) "Binarios disponibles" else "Integración de binarios pendiente",
+            detail = if (qemuAvailable) "QEMU está disponible. La creación y el arranque de VMs se habilitarán al completar el selector de kernel/initrd y la configuración de VM." else "La API QEMU ya está integrada, pero esta APK todavía no incluye qemu-system ni qemu-img. PRoot se conserva temporalmente como compatibilidad.",
+            good = qemuAvailable,
+        )
+        SectionCard(
+            title = "PRoot · compatibilidad temporal",
             value = if (prootAvailable) "Instalado y verificado" else "No disponible",
             detail = prootInstallStatus,
             good = prootAvailable,
@@ -908,7 +920,7 @@ private fun TerminalPage(
             Button(
                 onClick = onStartSession,
                 enabled = prootAvailable && selectedDistro != null && !terminalStatus.startsWith("Conectado"),
-            ) { Text(if (selectedDistro == null) "Sin distro" else "Iniciar ${selectedDistro.name}") }
+            ) { Text(if (selectedDistro == null) "Sin distro" else "Iniciar ${selectedDistro.name} · legacy") }
             Button(onClick = onSendCommand, enabled = terminalStatus.startsWith("Conectado")) { Text("Ejecutar") }
             Button(onClick = onStopSession, enabled = terminalStatus.startsWith("Conectado")) { Text("Detener") }
         }
