@@ -47,7 +47,8 @@ while (("${#QUEUE[@]}")); do
 
         SOURCE_LIB="$(find "$PREFIX/lib" -maxdepth 1 \( -type f -o -type l \) -name "$NEEDED" -print -quit)"
         if [[ -z "$SOURCE_LIB" && "$NEEDED" == "libc++_shared.so" ]]; then
-            SOURCE_LIB="$(find "$ANDROID_NDK_HOME" -path '*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so' -print -quit)"
+            NDK_SEARCH_ROOT="${ANDROID_NDK_HOME:-$HOME/.termux-build}"
+            SOURCE_LIB="$(find "$NDK_SEARCH_ROOT" -path '*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so' -print -quit 2>/dev/null || true)"
         fi
         if [[ -z "$SOURCE_LIB" ]]; then
             echo "Unresolved Android QEMU dependency: $NEEDED" >&2
