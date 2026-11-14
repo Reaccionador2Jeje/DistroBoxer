@@ -1,0 +1,84 @@
+name: Build QEMU Android runtime
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-qemu-arm64:
+    name: Build QEMU System and qemu-img (arm64-v8a)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      TERMUX_PACKAGES_REVISION: 8eb3169dbd10d71ef26e2847191f9ae2a452ab2e
+      QEMU_VERSION: 11.1.3
+      QEMU_SHA256: 5a8289c7940dc77d3873c81a6c29ba3afe1446fc9d36e77fa1658cdbecb84b22
+    steps:
+      - name: Checkout DistroBoxer
+        uses: actions/checkout@v5
+
+      - name: Checkout pinned Termux Android build toolchain
+        run: |
+          set -euo pipefail
+          git clone https://github.com/termux/termux-packages.git termux-packages
+          git -C termux-packages checkout "$TERMUX_PACKAGES_REVISION"
+          test "$(git -C termux-packages rev-parse HEAD)" = "$TERMUX_PACKAGES_REVISION"
+
+      - name: Prepare isolated DistroBoxer package namespace
+        run: |
+          set -euo pipefail
+          cd termux-packages
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/properties.sh")
+          s = p.read_text()
+          old = 'TERMUX_APP__PACKAGE_NAME="com.termux"'
+          new = 'TERMUX_APP__PACKAGE_NAME="com.atdevdev.distroboxer"'
+          if s.count(old) != 1:
+              raise SystemExit("Could not safely set the DistroBoxer package namespace")
+          p.write_text(s.replace(old, new))
+          PY
+          mkdir -p x11-packages/qemu-system-aarch64
+          cp ../packaging/termux-qemu/build.sh x11-packages/qemu-system-aarch64/build.sh
+          cp -a x11-packages/qemu-system-x86-64/setjmp-aarch64 x11-packages/qemu-system-aarch64/
+          test -s x11-packages/qemu-system-aarch64/setjmp-aarch64/setjmp.S
+
+      - name: Install Termux build host dependencies
+        run: sudo bash termux-packages/scripts/setup-ubuntu.sh
+
+      - name: Build pinned QEMU for Android ARM64
+        working-directory: termux-packages
+        env:
+          TERMUX_PKG_MAKE_PROCESSES: "2"
+        run: |
+          set -euo pipefail
+          ./build-package.sh -a aarch64 qemu-system-aarch64
+
+      - name: Verify and package runtime dependencies
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 \
+            "https://download.qemu.org/qemu-${QEMU_VERSION}.tar.xz" \
+            --output qemu-source.tar.xz
+          echo "${QEMU_SHA256}  qemu-source.tar.xz" | sha256sum --check -
+          mkdir -p termux-packages/qemu-source
+          tar -xJf qemu-source.tar.xz --strip-components=1 -C termux-packages/qemu-source
+          bash packaging/qemu/build-runtime.sh termux-packages dist
+          test -x dist/qemu/arm64-v8a/qemu-system-aarch64
+          test -x dist/qemu/arm64-v8a/qemu-img
+          test -s dist/qemu/arm64-v8a/SHA256SUMS
+          cat dist/qemu/arm64-v8a/BUILD-INFO.txt
+          cat dist/qemu/arm64-v8a/SHA256SUMS
+
+      - name: Upload verified QEMU runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-runtime-arm64-v8a
+          path: dist/qemu
+          if-no-files-found: error
+          retention-days: 14
