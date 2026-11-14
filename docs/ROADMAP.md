@@ -25,13 +25,17 @@
 - [ ] Pin an official Alpine minirootfs URL and checksum
 - [ ] Complete and test Alpine first-install flow
 
-## 0.5.0 — Android runtime
-- [ ] Review and package a compatible PRoot runtime with license notices
-- [ ] Configure isolated runtime environment and bind mounts
-- [ ] Start and stop a distribution process safely
-- [ ] Add user-visible foreground service for active Linux sessions
-- [ ] Handle Android process recreation and session recovery
-- [ ] Interactive terminal session API and UI
+## 0.5.0 — QEMU Android runtime migration
+- [x] Define QEMU-first runtime architecture and PRoot retirement gates
+- [x] Add app-private VM storage, safe kernel/initrd import, QCOW2 creation, TCG launch API, and loopback-only optional VNC
+- [ ] Build pinned QEMU System and qemu-img Android executables for ARM64
+- [ ] Verify ELF ABI, dependencies, checksums, and third-party licenses in CI
+- [ ] Add VM creation UI, kernel/initrd picker, disk sizing, and start/stop controls
+- [ ] Connect QEMU serial stdio to the integrated terminal
+- [ ] Provide a supported bootable guest kernel/initramfs and install flow
+- [ ] Add optional local VNC viewer and touch/keyboard input
+- [ ] Validate boot, networking, storage persistence, and lifecycle on physical Android devices
+- [ ] Remove PRoot only after all QEMU acceptance gates pass
 
 ## 0.6.0 — Additional distro installers
 - [ ] Debian and Ubuntu OCI installers
