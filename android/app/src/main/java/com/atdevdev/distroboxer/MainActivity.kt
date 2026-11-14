@@ -720,6 +720,7 @@ for numero in range(1, 6):
                         terminalSession?.close()
                         terminalSession = null
                         prootRuntime.stop()
+                        qemuRuntime.stop()
                         terminalStatus = "Sesión detenida"
                         terminalOutput += "\n[ DistroBoxer: sesión detenida ]\n"
                     },
@@ -990,12 +991,6 @@ private fun TerminalPage(
                 )
             }
         }
-        SectionCard(
-            title = "QEMU System · motor principal",
-            value = if (qemuAvailable) "Binarios disponibles" else "Integración de binarios pendiente",
-            detail = if (qemuAvailable) "QEMU está disponible. La creación y el arranque de VMs se habilitarán al completar el selector de kernel/initrd y la configuración de VM." else "La API QEMU ya está integrada, pero esta APK todavía no incluye qemu-system ni qemu-img. PRoot se conserva temporalmente como compatibilidad.",
-            good = qemuAvailable,
-        )
         SectionCard(
             title = "PRoot · compatibilidad temporal",
             value = if (prootAvailable) "Instalado y verificado" else "No disponible",
