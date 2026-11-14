@@ -1,5 +1,12 @@
 # Runtime components
 
+## QEMU System (primary migration target)
+
+`android/app/src/main/java/com/atdevdev/distroboxer/QemuRuntime.kt` introduces the first QEMU runtime API. It keeps VM state under `filesDir/qemu/vms/<vm-id>`, imports only fixed-name kernel/initrd files into private storage, creates sparse QCOW2 disks with `qemu-img`, and launches QEMU System with TCG, a serial stdio console, virtio disk/network devices, and optional VNC bound to `127.0.0.1` only.
+
+The Android package does not yet contain QEMU executables or a bootable guest kernel/initramfs. The binary packaging workflow, guest provisioning, terminal UI wiring, and physical-device validation remain required. The existing PRoot runtime stays in place until all migration acceptance gates pass. See [QEMU migration](../docs/QEMU_MIGRATION.md).
+
+
 ## Android PRoot
 
 DistroBoxer builds PRoot from a pinned Termux source revision for:
