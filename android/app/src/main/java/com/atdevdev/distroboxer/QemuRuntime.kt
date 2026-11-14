@@ -8,14 +8,16 @@ import java.io.FileOutputStream
 /**
  * QEMU System runtime for app-private Linux virtual machines.
  *
- * The QEMU executables are expected in nativeLibraryDir (packaged per Android
- * ABI by the QEMU runtime build). PRoot remains untouched until this backend
- * has packaged binaries, boot media, and passed device validation.
+ * QEMU executables and their non-platform shared libraries are packaged as
+ * Android assets, then extracted into app-private executable storage. This
+ * avoids loading them as JNI libraries and preserves their SONAME filenames.
+ * PRoot remains available until physical-device validation is complete.
  */
 class QemuRuntime(context: Context) {
     private val app = context.applicationContext
     private val vmRoot = File(app.filesDir, "qemu/vms").canonicalFile
-    private val nativeRoot = File(app.applicationInfo.nativeLibraryDir).canonicalFile
+    private val runtimeAssetPath = "qemu/arm64-v8a"
+    private val runtimeRoot = File(app.filesDir, "qemu/runtime/arm64-v8a").canonicalFile
     private var activeProcess: Process? = null
 
     enum class GuestArchitecture(val qemuName: String, val machine: String, val serialConsole: String) {
@@ -32,9 +34,12 @@ class QemuRuntime(context: Context) {
 
     /** True only when both the system emulator and disk utility are executable. */
     fun isRuntimeAvailable(architecture: GuestArchitecture = GuestArchitecture.AARCH64): Boolean {
-        val emulator = emulatorFor(architecture)
-        val imageTool = File(nativeRoot, "libqemu-img.so")
-        return isExecutableInsideNativeDir(emulator) && isExecutableInsideNativeDir(imageTool)
+        if (architecture != GuestArchitecture.AARCH64) return false
+        val installed = isExecutableInRuntime(emulatorFor(architecture)) &&
+            isExecutableInRuntime(File(runtimeRoot, "qemu-img"))
+        if (installed) return true
+        val assets = app.assets.list(runtimeAssetPath)?.toSet().orEmpty()
+        return "qemu-system-aarch64" in assets && "qemu-img" in assets
     }
 
     /**
@@ -96,15 +101,18 @@ class QemuRuntime(context: Context) {
     fun createDisk(vmId: String, sizeGiB: Int = 12): File {
         require(sizeGiB in 4..64) { "El disco debe tener entre 4 y 64 GiB." }
         check(isRuntimeAvailable()) { "QEMU y qemu-img todavía no están empaquetados en esta versión." }
+        ensureRuntimeInstalled()
         val directory = vmDirectory(vmId)
         check(directory.exists() || directory.mkdirs()) { "No se pudo crear el directorio de la VM." }
         val disk = File(directory, "system.qcow2")
         require(disk.canonicalFile.parentFile == directory) { "Ruta del disco no válida." }
         if (disk.exists()) return disk
         val process = ProcessBuilder(
-            File(nativeRoot, "libqemu-img.so").absolutePath,
+            File(runtimeRoot, "qemu-img").absolutePath,
             "create", "-f", "qcow2", disk.absolutePath, "${sizeGiB}G",
-        ).directory(directory).redirectErrorStream(true).start()
+        ).directory(directory).redirectErrorStream(true).apply {
+            environment()["LD_LIBRARY_PATH"] = runtimeRoot.absolutePath
+        }.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
         val exit = process.waitFor()
         check(exit == 0 && disk.isFile && disk.length() > 0L) {
@@ -130,8 +138,9 @@ class QemuRuntime(context: Context) {
         require(memoryMiB in 512..4096) { "La memoria debe estar entre 512 y 4096 MiB." }
         require(vcpus in 1..4) { "La VM admite entre 1 y 4 vCPU en esta configuración." }
         check(isRuntimeAvailable(architecture)) {
-            "El runtime QEMU para ${architecture.qemuName} no está instalado o no es ejecutable."
+            "El runtime QEMU para ${architecture.qemuName} no está incluido en esta APK."
         }
+        ensureRuntimeInstalled()
 
         val directory = vmDirectory(vmId)
         val disk = File(directory, "system.qcow2")
@@ -175,6 +184,7 @@ class QemuRuntime(context: Context) {
         val process = ProcessBuilder(command)
             .directory(directory)
             .redirectErrorStream(true)
+            .apply { environment()["LD_LIBRARY_PATH"] = runtimeRoot.absolutePath }
             .start()
         activeProcess = process
         return process
@@ -195,7 +205,62 @@ class QemuRuntime(context: Context) {
     fun isRunning(): Boolean = activeProcess?.isAlive == true
 
     private fun emulatorFor(architecture: GuestArchitecture): File =
-        File(nativeRoot, "libqemu-system-${architecture.qemuName}.so")
+        File(runtimeRoot, "qemu-system-${architecture.qemuName}")
+
+    /**
+     * Installs the signed-by-APK runtime assets into app-private storage.
+     * Called from disk/VM operations that already run on Dispatchers.IO.
+     */
+    @Synchronized
+    private fun ensureRuntimeInstalled() {
+        val assetNames = app.assets.list(runtimeAssetPath)?.toList().orEmpty()
+        check("qemu-system-aarch64" in assetNames && "qemu-img" in assetNames) {
+            "Esta APK no incluye los binarios QEMU ARM64."
+        }
+        val buildInfo = app.assets.open("$runtimeAssetPath/BUILD-INFO.txt")
+            .bufferedReader().use { it.readText() }
+        val version = buildInfo.hashCode().toString()
+        val marker = File(runtimeRoot, ".runtime-version")
+        if (marker.isFile && marker.readText() == version &&
+            isExecutableInRuntime(emulatorFor(GuestArchitecture.AARCH64)) &&
+            isExecutableInRuntime(File(runtimeRoot, "qemu-img"))
+        ) return
+
+        check(runtimeRoot.exists() || runtimeRoot.mkdirs()) {
+            "No se pudo crear el directorio privado del runtime QEMU."
+        }
+        for (name in assetNames) {
+            require(name.matches(Regex("[A-Za-z0-9_.+-]+"))) { "Nombre de archivo QEMU no válido." }
+            val destination = File(runtimeRoot, name).canonicalFile
+            require(destination.parentFile == runtimeRoot) { "Ruta de runtime QEMU no válida." }
+            val temporary = File(runtimeRoot, ".$name.part")
+            try {
+                app.assets.open("$runtimeAssetPath/$name").use { input ->
+                    FileOutputStream(temporary).use { output ->
+                        input.copyTo(output)
+                        output.fd.sync()
+                    }
+                }
+                check(temporary.renameTo(destination) || destination.delete() && temporary.renameTo(destination)) {
+                    "No se pudo instalar el archivo QEMU: $name"
+                }
+                val executable = name == "qemu-system-aarch64" || name == "qemu-img"
+                check(destination.setReadable(true, true)) { "No se pudo habilitar lectura para $name." }
+                if (executable) {
+                    check(destination.setExecutable(true, true)) { "No se pudo habilitar ejecución para $name." }
+                }
+            } finally {
+                temporary.delete()
+            }
+        }
+        check(marker.writeText(version).let { true }) { "No se pudo guardar la versión del runtime." }
+        check(isExecutableInRuntime(emulatorFor(GuestArchitecture.AARCH64)) &&
+            isExecutableInRuntime(File(runtimeRoot, "qemu-img"))
+        ) { "La instalación del runtime QEMU quedó incompleta." }
+    }
+
+    private fun isExecutableInRuntime(file: File): Boolean =
+        file.isFile && file.canExecute() && file.canonicalFile.parentFile == runtimeRoot
 
     private fun vmDirectory(vmId: String): File {
         require(vmId.matches(Regex("[a-z][a-z0-9_-]{1,31}"))) { "Identificador de VM no válido." }
@@ -206,9 +271,6 @@ class QemuRuntime(context: Context) {
         }
         return directory
     }
-
-    private fun isExecutableInsideNativeDir(file: File): Boolean =
-        file.isFile && file.canExecute() && file.canonicalFile.parentFile == nativeRoot
 
     private fun isPrivateRegularFile(directory: File, file: File): Boolean =
         file.isFile && file.canonicalFile.parentFile == directory.canonicalFile
