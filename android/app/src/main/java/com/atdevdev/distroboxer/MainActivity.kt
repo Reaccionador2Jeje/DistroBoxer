@@ -236,6 +236,9 @@ for numero in range(1, 6):
     var terminalStatus by remember { mutableStateOf("Sesión cerrada") }
     var terminalSession by remember { mutableStateOf<TerminalSession?>(null) }
     var terminalDisplay by remember { mutableStateOf<String?>(null) }
+    var qemuVmStatus by remember { mutableStateOf("VM QEMU sin configurar") }
+    var qemuVncEnabled by remember { mutableStateOf(false) }
+    val qemuVmId = "primary-vm"
 
     val currentTerminalSession by rememberUpdatedState(terminalSession)
     DisposableEffect(prootRuntime, qemuRuntime, x11Backend) {
@@ -312,6 +315,7 @@ for numero in range(1, 6):
             current.close()
             terminalSession = null
             prootRuntime.stop()
+            qemuRuntime.stop()
         }
         val process = withContext(Dispatchers.IO) { prootRuntime.startShell(distroId, display) }
         val session = TerminalSession(
@@ -336,6 +340,7 @@ for numero in range(1, 6):
             terminalSession = null
             terminalDisplay = null
             prootRuntime.stop()
+            qemuRuntime.stop()
             terminalStatus = "Sesión detenida al cambiar de distribución"
             terminalOutput += "\n[ DistroBoxer: distribución cambiada ]\n"
         }
@@ -352,6 +357,58 @@ for numero in range(1, 6):
             } catch (error: Exception) {
                 terminalStatus = "No se pudo iniciar"
                 terminalOutput += "\n[error] ${error.message ?: "No se pudo iniciar PRoot"}\n"
+            }
+        }
+    }
+
+    fun createQemuDisk() {
+        coroutineScope.launch {
+            try {
+                withContext(Dispatchers.IO) { qemuRuntime.createDisk(qemuVmId, 12) }
+                qemuVmStatus = "Disco QCOW2 de 12 GiB creado."
+            } catch (error: Exception) {
+                qemuVmStatus = "No se pudo crear el disco QEMU: ${error.message}"
+            }
+        }
+    }
+
+    fun startQemuVm() {
+        coroutineScope.launch {
+            try {
+                check(qemuRuntime.isRuntimeAvailable()) {
+                    "Los binarios QEMU todavía no están incluidos en esta APK."
+                }
+                check(qemuRuntime.hasDisk(qemuVmId)) { "Crea primero el disco QCOW2 de la VM." }
+                check(qemuRuntime.hasBootInputs(qemuVmId)) {
+                    "Importa un kernel y un initramfs compatibles antes de iniciar."
+                }
+                terminalSession?.close()
+                terminalSession = null
+                prootRuntime.stop()
+                val process = withContext(Dispatchers.IO) {
+                    qemuRuntime.start(qemuVmId, enableVnc = qemuVncEnabled)
+                }
+                val session = TerminalSession(
+                    process = process,
+                    onOutput = { chunk -> terminalOutput = (terminalOutput + chunk).takeLast(18000) },
+                    onExit = { code ->
+                        terminalStatus = "La VM QEMU terminó (código $code)"
+                        terminalSession = null
+                        terminalDisplay = null
+                    },
+                )
+                terminalSession = session
+                terminalDisplay = "qemu"
+                terminalStatus = "Conectado a VM QEMU"
+                qemuVmStatus = if (qemuVncEnabled) {
+                    "QEMU iniciado · consola serial activa · VNC en 127.0.0.1:5901"
+                } else {
+                    "QEMU iniciado · consola serial activa"
+                }
+                terminalOutput += "\\n[ DistroBoxer: máquina virtual QEMU iniciada ]\\n"
+            } catch (error: Exception) {
+                qemuVmStatus = "No se pudo iniciar QEMU: ${error.message}"
+                terminalOutput += "\\n[QEMU] ${error.message}\\n"
             }
         }
     }
@@ -421,6 +478,22 @@ for numero in range(1, 6):
                 projectStatus = "No se pudo ejecutar: ${error.message ?: "error desconocido"}. Instala Alpine primero."
             }
         }
+    }
+    val qemuKernelPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) runCatching {
+            qemuRuntime.importBootFile(qemuVmId, uri, "kernel.img")
+        }.onSuccess { qemuVmStatus = "Kernel importado: ${it.name}" }
+            .onFailure { qemuVmStatus = "Error al importar kernel: ${it.message}" }
+    }
+    val qemuInitrdPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) runCatching {
+            qemuRuntime.importBootFile(qemuVmId, uri, "initrd.img")
+        }.onSuccess { qemuVmStatus = "Initramfs importado: ${it.name}" }
+            .onFailure { qemuVmStatus = "Error al importar initramfs: ${it.message}" }
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -611,6 +684,16 @@ for numero in range(1, 6):
                 }
                 AppTab.TERMINAL -> TerminalPage(
                     qemuAvailable = qemuAvailable,
+                    qemuVmStatus = qemuVmStatus,
+                    qemuVmRunning = qemuRuntime.isRunning(),
+                    qemuDiskReady = qemuRuntime.hasDisk(qemuVmId),
+                    qemuBootReady = qemuRuntime.hasBootInputs(qemuVmId),
+                    qemuVncEnabled = qemuVncEnabled,
+                    onImportKernel = { qemuKernelPicker.launch(arrayOf("*/*")) },
+                    onImportInitrd = { qemuInitrdPicker.launch(arrayOf("*/*")) },
+                    onCreateQemuDisk = { createQemuDisk() },
+                    onStartQemu = { startQemuVm() },
+                    onToggleQemuVnc = { qemuVncEnabled = it },
                     prootAvailable = prootAvailable,
                     prootInstallStatus = prootInstallStatus,
                     installedDistros = catalog.distros.filter {
@@ -836,6 +919,16 @@ private fun DistroCard(
 @Composable
 private fun TerminalPage(
     qemuAvailable: Boolean,
+    qemuVmStatus: String,
+    qemuVmRunning: Boolean,
+    qemuDiskReady: Boolean,
+    qemuBootReady: Boolean,
+    qemuVncEnabled: Boolean,
+    onImportKernel: () -> Unit,
+    onImportInitrd: () -> Unit,
+    onCreateQemuDisk: () -> Unit,
+    onStartQemu: () -> Unit,
+    onToggleQemuVnc: (Boolean) -> Unit,
     prootAvailable: Boolean,
     prootInstallStatus: String,
     installedDistros: List<DistroUi>,
@@ -857,7 +950,46 @@ private fun TerminalPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Una terminal conectada a tus distribuciones instaladas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Terminal serial de máquinas virtuales QEMU, con PRoot temporal como compatibilidad.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("QEMU SYSTEM · VM PRINCIPAL", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(qemuVmStatus, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onImportKernel) { Text("Importar kernel") }
+                    Button(onClick = onImportInitrd) { Text("Importar initrd") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onCreateQemuDisk, enabled = qemuAvailable && !qemuDiskReady) {
+                        Text(if (qemuDiskReady) "Disco creado" else "Crear disco 12 GiB")
+                    }
+                    Button(onClick = onStartQemu, enabled = qemuAvailable && qemuDiskReady && qemuBootReady && !qemuVmRunning) {
+                        Text("Iniciar VM")
+                    }
+                    Button(onClick = onStopSession, enabled = qemuVmRunning) { Text("Detener VM") }
+                }
+                FilterChip(
+                    selected = qemuVncEnabled,
+                    onClick = { onToggleQemuVnc(!qemuVncEnabled) },
+                    label = { Text(if (qemuVncEnabled) "VNC activado" else "VNC opcional") },
+                )
+                Text(
+                    "Kernel: " + (if (qemuBootReady) "kernel + initrd importados" else "faltan kernel/initrd") +
+                        " · Disco: " + (if (qemuDiskReady) "QCOW2 listo" else "pendiente"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Text(
+                    "La consola serial se conecta a esta terminal. VNC, si se activa, escucha solo en 127.0.0.1:5901.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         SectionCard(
             title = "QEMU System · motor principal",
             value = if (qemuAvailable) "Binarios disponibles" else "Integración de binarios pendiente",
