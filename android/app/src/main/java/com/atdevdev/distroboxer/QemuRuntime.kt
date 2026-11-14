@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * QEMU System runtime for app-private Linux virtual machines.
@@ -213,15 +214,32 @@ class QemuRuntime(context: Context) {
      */
     @Synchronized
     private fun ensureRuntimeInstalled() {
-        val assetNames = app.assets.list(runtimeAssetPath)?.toList().orEmpty()
-        check("qemu-system-aarch64" in assetNames && "qemu-img" in assetNames) {
-            "Esta APK no incluye los binarios QEMU ARM64."
+        val assetNames = app.assets.list(runtimeAssetPath)?.toSet().orEmpty()
+        check("qemu-system-aarch64" in assetNames && "qemu-img" in assetNames &&
+            "SHA256SUMS" in assetNames && "BUILD-INFO.txt" in assetNames
+        ) { "Esta APK no incluye el runtime QEMU ARM64 completo." }
+
+        val checksumText = app.assets.open("$runtimeAssetPath/SHA256SUMS")
+            .bufferedReader().use { it.readText() }
+        val expectedHashes = checksumText.lineSequence().mapNotNull { line ->
+            val match = Regex("^([a-fA-F0-9]{64})\\s+\\*?(.+)$").matchEntire(line.trim())
+                ?: return@mapNotNull null
+            match.groupValues[2] to match.groupValues[1].lowercase()
+        }.toMap()
+        check("qemu-system-aarch64" in expectedHashes && "qemu-img" in expectedHashes) {
+            "El manifiesto SHA-256 no incluye los ejecutables QEMU."
         }
+
         val buildInfo = app.assets.open("$runtimeAssetPath/BUILD-INFO.txt")
             .bufferedReader().use { it.readText() }
-        val version = buildInfo.hashCode().toString()
+        val version = "${buildInfo.hashCode()}-${checksumText.hashCode()}"
         val marker = File(runtimeRoot, ".runtime-version")
-        if (marker.isFile && marker.readText() == version &&
+        val installedFilesValid = expectedHashes.all { (name, expected) ->
+            val installed = File(runtimeRoot, name)
+            installed.isFile && installed.canonicalFile.parentFile == runtimeRoot &&
+                sha256(installed) == expected
+        }
+        if (marker.isFile && marker.readText() == version && installedFilesValid &&
             isExecutableInRuntime(emulatorFor(GuestArchitecture.AARCH64)) &&
             isExecutableInRuntime(File(runtimeRoot, "qemu-img"))
         ) return
@@ -241,6 +259,13 @@ class QemuRuntime(context: Context) {
                         output.fd.sync()
                     }
                 }
+                val expected = expectedHashes[name]
+                val isBinary = name == "qemu-system-aarch64" || name == "qemu-img" || name.contains(".so")
+                if (isBinary) {
+                    check(expected != null && sha256(temporary) == expected) {
+                        "La verificación SHA-256 falló para el archivo QEMU: $name"
+                    }
+                }
                 check(temporary.renameTo(destination) || destination.delete() && temporary.renameTo(destination)) {
                     "No se pudo instalar el archivo QEMU: $name"
                 }
@@ -253,10 +278,33 @@ class QemuRuntime(context: Context) {
                 temporary.delete()
             }
         }
-        check(marker.writeText(version).let { true }) { "No se pudo guardar la versión del runtime." }
-        check(isExecutableInRuntime(emulatorFor(GuestArchitecture.AARCH64)) &&
+        marker.writeText(version)
+        check(installedFilesValidAfterInstall(expectedHashes) &&
+            isExecutableInRuntime(emulatorFor(GuestArchitecture.AARCH64)) &&
             isExecutableInRuntime(File(runtimeRoot, "qemu-img"))
-        ) { "La instalación del runtime QEMU quedó incompleta." }
+        ) { "La instalación del runtime QEMU quedó incompleta o dañada." }
+    }
+
+    private fun installedFilesValidAfterInstall(expectedHashes: Map<String, String>): Boolean =
+        expectedHashes.all { (name, expected) ->
+            val installed = File(runtimeRoot, name)
+            installed.isFile && installed.canonicalFile.parentFile == runtimeRoot &&
+                sha256(installed) == expected
+        }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
+        }
     }
 
     private fun isExecutableInRuntime(file: File): Boolean =
