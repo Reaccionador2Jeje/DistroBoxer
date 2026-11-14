@@ -64,12 +64,18 @@ while (("${#QUEUE[@]}")); do
 done
 
 # Ensure all packaged ELF files are Android AArch64 and use only the platform
-# dynamic linker. No executable is accepted merely because it has an ELF header.
+# dynamic linker. Remove build-prefix RPATHs: runtime libraries are colocated
+# and resolved from LD_LIBRARY_PATH set by QemuRuntime.
 for ELF in "$ABI_DIR"/*; do
     [[ -f "$ELF" ]] || continue
     readelf -h "$ELF" | grep -q 'AArch64'
     if readelf -l "$ELF" | grep -q 'Requesting program interpreter'; then
         readelf -l "$ELF" | grep -q '/system/bin/linker64'
+    fi
+    patchelf --remove-rpath "$ELF" || true
+    if readelf -d "$ELF" | grep -E 'RPATH|RUNPATH'; then
+        echo "Unexpected build-time RPATH in $ELF" >&2
+        exit 1
     fi
 done
 
