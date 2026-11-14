@@ -5,6 +5,7 @@ import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OverwritingInputMerger
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -59,7 +60,9 @@ object DistroDownloadScheduler {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
-        val install = OneTimeWorkRequestBuilder<DistroRootfsInstallWorker>().build()
+        val install = OneTimeWorkRequestBuilder<DistroRootfsInstallWorker>()
+            .setInputMerger(OverwritingInputMerger::class.java)
+            .build()
 
         WorkManager.getInstance(context)
             .beginUniqueWork(

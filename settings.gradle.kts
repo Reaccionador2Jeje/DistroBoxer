@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "DistroBoxer"
 include(":android:app")
+include(":android:x11server-adapter")

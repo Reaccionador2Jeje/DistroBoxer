@@ -53,7 +53,7 @@ An installer must use pinned, trusted source metadata and published checksums. E
 
 ### Android runtime
 
-PRoot is the initial candidate for running Linux userspace without root. Its source, license, ABI compatibility, and redistribution terms must be checked before packaging. Android kernel and system-call limitations still apply.
+QEMU System is the target primary runtime for full Linux virtual machines. The initial Kotlin adapter stores QCOW2 disks and boot inputs in app-private storage, uses TCG rather than assuming KVM, exposes a serial console through process stdio, and can optionally bind VNC to loopback only. The Android QEMU executables, reproducible build pipeline, guest kernel/initramfs provisioning, and UI integration are still pending. PRoot remains temporarily as a legacy compatibility path and must not be removed before the QEMU physical-device acceptance gates pass. See [QEMU migration](QEMU_MIGRATION.md).
 
 ### Desktop application
 
