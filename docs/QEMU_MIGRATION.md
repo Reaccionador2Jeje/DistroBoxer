@@ -16,13 +16,7 @@ QEMU System becomes the target primary Android runtime. PRoot remains temporaril
 
 ## Binary packaging contract
 
-The Android package must provide executable QEMU payloads in `nativeLibraryDir`:
-
-- `libqemu-system-aarch64.so`
-- `libqemu-system-x86_64.so`
-- `libqemu-img.so`
-
-These are executable payloads, not JNI libraries. The build pipeline must compile or obtain them from a pinned, license-reviewed source, verify SHA-256 and ELF machine/ABI, and package matching dependencies. Never add placeholder binaries or silently fall back to a host executable.
+The Android package carries QEMU executable assets under `assets/qemu/arm64-v8a/`. On first use, the app extracts `qemu-system-aarch64`, `qemu-img`, and their exact-SONAME shared-library dependencies into app-private executable storage. This avoids treating command-line programs as JNI libraries and preserves versioned library filenames. The initial build is pinned to QEMU 11.1.3 and a fixed Termux build-system revision; CI verifies the source archive SHA-256, ELF machine, Android linker, dependency closure, and runtime checksums.
 
 ## Migration phases
 
