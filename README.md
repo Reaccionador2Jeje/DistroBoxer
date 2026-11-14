@@ -2,7 +2,7 @@
 
 **DistroBoxer** is an open-source Linux environment manager and lightweight development workspace for Android, Windows, and Linux desktop.
 
-The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. On Android, PRoot runs Linux user-space programs without granting Android root access or providing a separate Linux kernel.
+The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. The Android runtime is migrating to QEMU System as its primary full-VM engine; PRoot remains temporarily available as a legacy path until QEMU is packaged and validated on physical devices.
 
 ## Project status
 
@@ -15,7 +15,8 @@ Implemented:
 - JSON metadata and validated installation lifecycle transitions.
 - Alpine rootfs download and installation pipeline with HTTPS allowlisting, SHA-256 verification, cancellation, and foreground notifications.
 - Rust gzip tar extraction with path traversal and unsafe link checks, staging validation, and rootfs promotion.
-- Android PRoot builds pinned to a Termux source revision for `arm64-v8a` and `x86_64`; Android CI packages the verified binaries into the APK.
+- Initial QEMU System runtime API for private VM storage, QCOW2 disk creation, kernel/initrd import, TCG serial boot, and loopback-only optional VNC. QEMU executable payloads and boot media are not bundled yet.
+- Existing Android PRoot runtime retained temporarily as the legacy path during the QEMU migration.
 - First-launch PRoot installation into app-private storage with SHA-256 verification.
 - Interactive PRoot shell wired to the Android Terminal screen.
 - A small programming workspace with a Python example, source editing, private project saving, and execution inside an installed Alpine rootfs.
@@ -84,7 +85,7 @@ See [desktop/README.md](desktop/README.md) for platform-specific requirements.
 
 ## Graphical desktop roadmap
 
-See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The Android X11 screen and PRoot launch path are integrated in source, but complete desktop compatibility still requires testing on physical Android devices.
+See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The existing Android X11 screen is experimental. The QEMU migration and VNC client integration are tracked in [docs/QEMU_MIGRATION.md](docs/QEMU_MIGRATION.md).
 
 ## Background work and permissions
 
