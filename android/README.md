@@ -21,7 +21,7 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 ## Known limitations
 
 - Alpine is currently the only Android rootfs installation path; other catalog distributions are not yet installable end-to-end.
-- QEMU executables (`qemu-system-aarch64`, `qemu-system-x86_64`, `qemu-img`), a reproducible Android build pipeline, guest kernel/initramfs provisioning, and a VNC viewer are not yet integrated. The Terminal page now has initial kernel/initrd import, QCOW2 creation, VM start/stop, optional loopback VNC, and serial-console controls, but QEMU cannot boot until its binaries and matching guest boot files are supplied.
+- The reusable `qemu-runtime.yml` workflow builds pinned QEMU 11.1.3 for Android ARM64 through a pinned Termux cross-build system. It packages `qemu-system-aarch64`, `qemu-img`, and their shared-library closure as APK assets. `QemuRuntime` extracts them into app-private storage and supplies `LD_LIBRARY_PATH`. The first successful CI run and physical-device validation are still required; a guest kernel/initramfs and VNC viewer are not bundled yet.
 - The existing PRoot shell remains the currently wired terminal path during this migration.
 - Python must be installed inside Alpine before running Python projects (for example, `apk add python3`).
 - A persistent foreground service for long-running Linux sessions is not implemented.
@@ -56,7 +56,7 @@ cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI still builds the legacy PRoot payload while the QEMU Android cross-build pipeline is being designed. See [QEMU migration](../docs/QEMU_MIGRATION.md).
+The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI builds the legacy PRoot payload and the QEMU ARM64 runtime artifact before assembling the APK. See [QEMU migration](../docs/QEMU_MIGRATION.md).
 
 ## Release channels
 
