@@ -78,6 +78,20 @@ class QemuRuntime(context: Context) {
         return destination
     }
 
+    fun hasBootInputs(vmId: String): Boolean {
+        val directory = runCatching { vmDirectory(vmId) }.getOrNull() ?: return false
+        val kernel = File(directory, "kernel.img")
+        val initrd = File(directory, "initrd.img")
+        return isPrivateRegularFile(directory, kernel) && kernel.length() > 0L &&
+            isPrivateRegularFile(directory, initrd) && initrd.length() > 0L
+    }
+
+    fun hasDisk(vmId: String): Boolean {
+        val directory = runCatching { vmDirectory(vmId) }.getOrNull() ?: return false
+        val disk = File(directory, "system.qcow2")
+        return isPrivateRegularFile(directory, disk) && disk.length() > 0L
+    }
+
     /** Creates a sparse QCOW2 disk; virtual capacity is limited to 4–64 GiB. */
     fun createDisk(vmId: String, sizeGiB: Int = 12): File {
         require(sizeGiB in 4..64) { "El disco debe tener entre 4 y 64 GiB." }
