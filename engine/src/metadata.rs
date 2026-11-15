@@ -69,3 +69,33 @@ impl DistroMetadata {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::InstallStatus::*;
+
+    #[test]
+    fn allows_the_expected_installation_lifecycle() {
+        assert!(NotInstalled.can_transition_to(Preparing));
+        assert!(Preparing.can_transition_to(Downloading));
+        assert!(Downloading.can_transition_to(Extracting));
+        assert!(Extracting.can_transition_to(Installed));
+    }
+
+    #[test]
+    fn allows_retry_after_failure_and_reinstallation() {
+        assert!(Failed.can_transition_to(Preparing));
+        assert!(Installed.can_transition_to(Preparing));
+        assert!(Downloading.can_transition_to(NotInstalled));
+    }
+
+    #[test]
+    fn rejects_skipped_or_reversed_lifecycle_steps() {
+        assert!(!NotInstalled.can_transition_to(Installed));
+        assert!(!Preparing.can_transition_to(Installed));
+        assert!(!Downloading.can_transition_to(Preparing));
+        assert!(!Extracting.can_transition_to(Downloading));
+        assert!(!Failed.can_transition_to(Installed));
+    }
+}
