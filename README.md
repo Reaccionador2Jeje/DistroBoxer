@@ -111,3 +111,9 @@ F-Droid publication is not yet complete. See [fdroid/README.md](fdroid/README.md
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Walletie compatibility
+
+DistroBoxer's distro management features remain free and independent of Walletie. Any future reward or profile integration must be optional and use the Walletie HTTPS API.
+
+Walletie V1 currently accepts AtDev Cloud HS256 tokens only; other identity systems need the documented SSO bridge first. See the [Walletie integration matrix](https://github.com/Reaccionador2Jeje/Walletie/blob/main/docs/INTEGRATION_MATRIX.md).
