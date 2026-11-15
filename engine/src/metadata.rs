@@ -70,7 +70,6 @@ impl DistroMetadata {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::InstallStatus::*;
