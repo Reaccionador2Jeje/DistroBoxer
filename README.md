@@ -6,7 +6,7 @@ The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android
 
 ## Project status
 
-Early development — next planned milestone: 0.4.2.
+Early development — next planned milestone: 0.4.3.
 
 Implemented:
 - Shared Rust engine and eight distribution catalog profiles: Debian, Ubuntu, Alpine, Arch Linux, Fedora, openSUSE, Void Linux, and Kali Linux.
@@ -15,6 +15,7 @@ Implemented:
 - JSON metadata and validated installation lifecycle transitions.\n- Initial read-only DistroBoxer Doctor API for storage, metadata, rootfs identity, shell-path, and lifecycle consistency diagnostics.
 - Passive host and runtime detection for OS, architecture, QEMU System, and PRoot availability.
 - Read-only storage analysis for filesystem capacity, directory usage, distribution rootfs/downloads, and permission hints.
+- Advisory Repair Planner that converts Doctor findings into risk-ranked suggestions without executing repairs.
 - Alpine rootfs download and installation pipeline with HTTPS allowlisting, SHA-256 verification, cancellation, and foreground notifications.
 - Rust gzip tar extraction with path traversal and unsafe link checks, staging validation, and rootfs promotion.
 - Initial QEMU System runtime API for private VM storage, QCOW2 disk creation, kernel/initrd import, TCG serial boot, and loopback-only optional VNC. QEMU executable payloads and boot media are not bundled yet.
@@ -92,6 +93,10 @@ The shared Rust engine exposes a read-only host and runtime discovery API. See [
 ## Storage Analyzer
 
 The shared Rust engine exposes a read-only storage usage and capacity report. See [docs/STORAGE_ANALYZER.md](docs/STORAGE_ANALYZER.md) for details.
+
+## Repair Planner
+
+The shared Rust engine converts Doctor findings into risk-ranked, non-executable repair suggestions. See [docs/REPAIR_PLANNER.md](docs/REPAIR_PLANNER.md) for details.
 
 ## Graphical desktop roadmap
 

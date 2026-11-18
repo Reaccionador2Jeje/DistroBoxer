@@ -10,6 +10,7 @@ mod android_jni;
 
 pub mod doctor;
 pub mod runtime_detection;
+pub mod repair_planner;
 pub mod installer;
 pub mod integrity;
 pub mod metadata;
@@ -19,6 +20,7 @@ pub mod storage_analyzer;
 pub use integrity::{sha256_file, verify_sha256};
 pub use doctor::{run_doctor, run_distro_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
 pub use runtime_detection::{detect_runtimes, normalize_architecture, DetectedRuntime, RuntimeReport};
+pub use repair_planner::{plan_repairs, RepairAction, RepairPlan, RepairRisk};
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
