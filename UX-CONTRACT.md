@@ -61,6 +61,14 @@
 | Run project | Run action | Save/copy/execute path | Programming | Actual command result | Show error and allow correction | Editor/action region | ProjectWorkspace |
 | Import VM input | File picker | File import | Terminal | Kernel/initrd imported state | Explain import error | Import action | QemuRuntime |
 
+## Immersive Android distro terminal
+- Opening Terminal from an installed distro card enters an immersive terminal surface that occupies the app content area; the app header and bottom navigation are hidden until the user returns to Distros.
+- The selected distro is shown in the terminal header. The shell starts when the user opens the terminal; if startup fails, the connection action remains available for retry and the failure remains visible in terminal output/status.
+- Terminal output owns the flexible, scrollable center region. The command field and Send action stay anchored at the bottom and remain usable with the Android soft keyboard open.
+- Enter/Send submits the current command; blank commands are not sent. The command field is disabled until a real shell session is connected.
+- Stop ends the process without leaving the terminal. Back to Distros returns to the catalog. Switching to another app tab exits immersive mode.
+- Copy/clear controls remain available in the terminal header; terminal output is the real process stream, not a preview.
+
 ## Navigation and responsive behavior
 - Android destinations: Inicio, Distros, Terminal, Programar, Escritorio, Ajustes; retain existing enum and navigation behavior.
 - Desktop destinations: Inicio, Distribuciones, Terminal, Escritorio, Ajustes.
