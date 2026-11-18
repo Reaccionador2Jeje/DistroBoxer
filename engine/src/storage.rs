@@ -285,6 +285,74 @@ impl StorageManager {
         }
     }
 
+    /// Installs a previously downloaded OCI image layer set.
+    ///
+    /// The manifest and all blobs must be inside this distribution's private
+    /// downloads directory. Every blob is verified against its OCI SHA-256.
+    pub fn install_oci_layers_with_progress(
+        &self,
+        id: &str,
+        manifest_path: impl AsRef<Path>,
+        mut progress: impl FnMut(String),
+    ) -> io::Result<()> {
+        let distro = find_distro(id).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
+        })?;
+        if distro.archive_format != "oci" {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, "distribution does not use OCI bootstrap"));
+        }
+
+        let distro_dir = self.prepare_distro(id)?;
+        let downloads_dir = fs::canonicalize(distro_dir.join("downloads"))?;
+        let manifest_path = fs::canonicalize(manifest_path)?;
+        if !manifest_path.starts_with(&downloads_dir) {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "OCI manifest must be inside private downloads"));
+        }
+
+        self.set_status(id, InstallStatus::NotInstalled, None)?;
+        self.transition_status(id, InstallStatus::Preparing, None)?;
+        self.transition_status(id, InstallStatus::Downloading, None)?;
+        self.transition_status(id, InstallStatus::Extracting, None)?;
+
+        let staging = distro_dir.join(".rootfs-staging");
+        let backup = distro_dir.join(".rootfs-backup");
+        let result = (|| {
+            remove_real_directory_if_present(&staging)?;
+            if fs::symlink_metadata(&backup).is_ok() {
+                return Err(io::Error::new(io::ErrorKind::AlreadyExists, "rootfs backup exists; manual recovery is required"));
+            }
+            fs::create_dir(&staging)?;
+            progress("Aplicando capas OCI verificadas…".to_owned());
+            crate::oci::extract_oci_layers_with_progress(&manifest_path, &staging, |line| progress(line))?;
+            progress("Validando identidad de la distribución…".to_owned());
+            validate_rootfs_release_file(&staging, id)?;
+
+            let rootfs = distro_dir.join("rootfs");
+            if fs::symlink_metadata(&rootfs).is_ok() {
+                ensure_real_directory(&rootfs)?;
+                fs::rename(&rootfs, &backup)?;
+            }
+            if let Err(error) = fs::rename(&staging, &rootfs) {
+                if fs::symlink_metadata(&backup).is_ok() {
+                    let _ = fs::rename(&backup, &rootfs);
+                }
+                return Err(error);
+            }
+            remove_real_directory_if_present(&backup)?;
+            progress("Instalación OCI finalizada correctamente.".to_owned());
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => self.transition_status(id, InstallStatus::Installed, None),
+            Err(error) => {
+                let _ = remove_real_directory_if_present(&staging);
+                let _ = self.set_status(id, InstallStatus::Failed, Some(error.to_string()));
+                Err(error)
+            }
+        }
+    }
+
     /// Checks for a real rootfs directory, rejecting a symlink at that location.
     pub fn is_installed(&self, id: &str) -> io::Result<bool> {
         let distro_dir = self.distro_dir(id)?;
