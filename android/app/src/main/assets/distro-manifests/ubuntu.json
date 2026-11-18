@@ -1,0 +1,11 @@
+{
+  "id": "ubuntu",
+  "version": "latest LTS channel",
+  "image": "library/ubuntu",
+  "tag": "latest",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "Ubuntu official Docker image"
+}
