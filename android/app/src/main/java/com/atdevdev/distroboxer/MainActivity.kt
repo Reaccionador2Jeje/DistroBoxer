@@ -997,6 +997,13 @@ private fun DistroCard(
     onPrepare: () -> Unit,
     onInstall: () -> Unit,
 ) {
+    val isBusy = storageStatus?.contains("descarg", ignoreCase = true) == true ||
+        storageStatus?.contains("instal", ignoreCase = true) == true ||
+        storageStatus?.contains("iniciadas", ignoreCase = true) == true
+    val hasError = storageStatus?.contains("error", ignoreCase = true) == true ||
+        storageStatus?.contains("no se pudo", ignoreCase = true) == true ||
+        storageStatus?.contains("fall", ignoreCase = true) == true ||
+        storageStatus?.contains("incompatible", ignoreCase = true) == true
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
@@ -1030,12 +1037,26 @@ private fun DistroCard(
             )
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (installed) DistroPalette.successSurface else DistroPalette.surfaceRaised,
+                color = when {
+                    installed -> DistroPalette.successSurface
+                    hasError -> DistroPalette.warningSurface
+                    isBusy -> DistroPalette.warningSurface
+                    else -> DistroPalette.surfaceRaised
+                },
             ) {
                 Text(
-                    if (installed) "ENTORNO INSTALADO" else "PERFIL DISPONIBLE",
+                    when {
+                        installed -> "ENTORNO INSTALADO"
+                        isBusy -> "DESCARGA / INSTALACIÓN EN CURSO"
+                        hasError -> "REVISAR INSTALACIÓN"
+                        else -> "PERFIL DISPONIBLE"
+                    },
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    color = if (installed) DistroPalette.accent else DistroPalette.secondary,
+                    color = when {
+                        installed -> DistroPalette.accent
+                        isBusy || hasError -> DistroPalette.warning
+                        else -> DistroPalette.secondary
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -1047,7 +1068,9 @@ private fun DistroCard(
                     modifier = Modifier.weight(1f),
                 ) { Text("Preparar espacio") }
                 if (distro.id == "alpine" && !installed) {
-                    Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
+                    Button(onClick = onInstall, enabled = engineConnected && !isBusy) {
+                        Text(if (isBusy) "En curso" else "Instalar")
+                    }
                 }
                 if (installed) {
                     Button(onClick = onOpenTerminal) { Text("Abrir terminal") }
@@ -1059,11 +1082,7 @@ private fun DistroCard(
                     color = if (installed) DistroPalette.accent else DistroPalette.mutedText,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                if (storageStatus.contains("error", ignoreCase = true) ||
-                    storageStatus.contains("no se pudo", ignoreCase = true) ||
-                    storageStatus.contains("fall", ignoreCase = true) ||
-                    storageStatus.contains("incompatible", ignoreCase = true)
-                ) {
+                if (hasError) {
                     CopyErrorButton(storageStatus)
                 }
             }
