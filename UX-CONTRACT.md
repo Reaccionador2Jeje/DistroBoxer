@@ -39,7 +39,7 @@
 |---|---|---|---|---|---|---|---|
 | Button | One clear action per area | Slight surface/border change | Visible primary outline | Tonal press | No pointer action | Stable dimensions, status label | Inline error |
 | Search | Labeled query | Border emphasis | Visible outline | n/a | n/a | n/a | No-results guidance |
-| Distribution card | Name + package manager + compatibility | Border emphasis on desktop | Actions reachable by keyboard | n/a | Explain unavailable installer | Show WorkManager progress | Preserve/copy useful error |
+| Distribution card | Name + package manager + compatibility | Border emphasis on desktop | Actions reachable by keyboard | n/a | Explain unavailable installer | Show WorkManager progress and disable duplicate install | Preserve/copy useful error; allow retry |
 | Navigation | Current destination highlighted | Surface emphasis | Visible focus | Selected marker + label | n/a | n/a | n/a |
 | Terminal | Clear session state | n/a | Native input focus | Connected state | Commands disabled without session | Show session startup state | Show process error and copy option |
 
