@@ -2,11 +2,14 @@
   "id": "void",
   "name": "Void Linux",
   "package_manager": "xbps",
-  "architectures": ["aarch64", "x86_64"],
-  "bootstrap": "official rootfs tarball",
+  "architectures": [
+    "aarch64",
+    "x86_64"
+  ],
+  "bootstrap": "Official Void Linux full OCI image",
   "homepage": "https://voidlinux.org/",
-  "archive_format": "tar.xz",
-  "status": "planned",
-  "rootfs_source": null,
-  "checksum": null
+  "archive_format": "oci",
+  "status": "installer-preview",
+  "image": "ghcr.io/void-linux/void-glibc-full",
+  "tag": "latest"
 }
