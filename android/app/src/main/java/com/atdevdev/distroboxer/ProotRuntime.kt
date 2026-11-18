@@ -5,6 +5,7 @@ import android.system.Os
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 /**
  * Starts an installed Linux rootfs with PRoot inside the app's own sandbox.
@@ -177,6 +178,87 @@ class ProotRuntime(context: Context) {
             }
         }
         return canonicalTemp
+    }
+
+    /**
+     * Executes a real, non-interactive PRoot smoke test before an installation
+     * is reported as ready. This validates the guest shell, writable runtime
+     * directories, distribution identity, and its native package manager.
+     */
+    @Synchronized
+    fun validateDistro(distroId: String) {
+        require(activeProcess?.isAlive != true) { "Cierra la sesión Linux antes de validar la instalación." }
+        require(isRuntimeAvailable()) { "El runtime PRoot no está disponible." }
+
+        val rootfs = resolveRootfs(distroId)
+        ensureGuestExecutable(rootfs, "bin/sh")
+        ensureGuestDirectory(rootfs, "root", 0x1C0)
+        ensureGuestDirectory(rootfs, "tmp", 0x3FF)
+        val tempDirectory = prepareProotTempDirectory()
+        val packageManager = when (distroId) {
+            "debian", "ubuntu", "kali" -> "apt-get"
+            "alpine" -> "apk"
+            "arch" -> "pacman"
+            "fedora" -> "dnf"
+            "opensuse" -> "zypper"
+            "void" -> "xbps-install"
+            else -> error("No hay una prueba de gestor de paquetes para $distroId")
+        }
+        val script = "set -eu; test -r /etc/os-release; test -w /root; test -w /tmp; command -v $packageManager >/dev/null; printf '%s\\n' DISTROBOXER_PROOT_OK"
+        val command = listOf(
+            prootFile.absolutePath,
+            "--kill-on-exit",
+            "--link2symlink",
+            "--sysvipc",
+            "-0",
+            "-r", rootfs.absolutePath,
+            "-w", "/root",
+            "-b", "/dev",
+            "-b", "/proc",
+            "-b", "/sys",
+            "-b", "/system",
+            "-b", "/apex",
+            "/bin/sh", "-c", script,
+        )
+        val process = ProcessBuilder(command)
+            .directory(rootfs)
+            .redirectErrorStream(true)
+            .apply {
+                environment().clear()
+                environment()["HOME"] = "/root"
+                environment()["USER"] = "root"
+                environment()["LOGNAME"] = "root"
+                environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                environment()["LANG"] = "C.UTF-8"
+                environment()["PROOT_TMP_DIR"] = tempDirectory.absolutePath
+                environment()["TMPDIR"] = "/tmp"
+            }
+            .start()
+
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        if (!process.waitFor(45, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            error("La prueba PRoot de $distroId superó el tiempo límite.")
+        }
+        check(process.exitValue() == 0 && output.contains("DISTROBOXER_PROOT_OK")) {
+            "La instalación de $distroId no superó la prueba PRoot (código ${process.exitValue()}): ${output.takeLast(1200)}"
+        }
+    }
+
+    private fun ensureGuestDirectory(rootfs: File, relativePath: String, mode: Int) {
+        val root = rootfs.canonicalFile
+        val directory = File(root, relativePath)
+        if (!directory.exists()) {
+            check(directory.mkdirs()) { "No se pudo crear /$relativePath en el rootfs." }
+        }
+        val resolved = directory.canonicalFile
+        check(resolved.toPath().startsWith(root.toPath()) && resolved.isDirectory) {
+            "El directorio /$relativePath no es seguro dentro del rootfs."
+        }
+        Os.chmod(resolved.absolutePath, mode)
+        check(resolved.canRead() && resolved.canWrite() && resolved.canExecute()) {
+            "El directorio /$relativePath no tiene permisos suficientes."
+        }
     }
 
     /** Returns true only when a validated rootfs exists for this distro. */
