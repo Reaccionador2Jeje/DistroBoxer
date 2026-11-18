@@ -385,11 +385,59 @@ impl StorageManager {
             return Ok(false);
         }
         match fs::metadata(&resolved_release) {
-            Ok(metadata) => Ok(metadata.is_file()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(error),
+            Ok(metadata) if metadata.is_file() => {}
+            Ok(_) => return Ok(false),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
         }
+
+        Ok(validate_rootfs_shell(&rootfs).is_ok())
     }
+}
+
+fn validate_rootfs_shell(rootfs: &Path) -> io::Result<()> {
+    let root = fs::canonicalize(rootfs)?;
+    let candidates = [root.join("bin/sh"), root.join("usr/bin/sh")];
+
+    for candidate in candidates {
+        let resolved = match fs::canonicalize(&candidate) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        if !resolved.starts_with(&root) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem shell resolves outside the rootfs",
+            ));
+        }
+
+        let metadata = fs::metadata(&resolved)?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem shell is not a regular file",
+            ));
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "root filesystem shell has no execute permission",
+                ));
+            }
+        }
+
+        return Ok(());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "root filesystem is missing /bin/sh and /usr/bin/sh",
+    ))
 }
 
 fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<()> {
@@ -435,6 +483,8 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
             "root filesystem distribution ID does not match the selected profile",
         ));
     }
+
+    validate_rootfs_shell(rootfs)?;
     Ok(())
 }
 
@@ -518,6 +568,12 @@ mod tests {
         header.set_mode(0o644);
         header.set_cksum();
         builder.append_data(&mut header, "etc/os-release", &contents[..]).unwrap();
+        let shell = b"#!/bin/sh\necho distroboxer-test\n";
+        let mut shell_header = Header::new_gnu();
+        shell_header.set_size(shell.len() as u64);
+        shell_header.set_mode(0o755);
+        shell_header.set_cksum();
+        builder.append_data(&mut shell_header, "bin/sh", &shell[..]).unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
@@ -584,6 +640,12 @@ mod tests {
         builder
             .append_data(&mut header, "etc/os-release", &contents[..])
             .unwrap();
+        let shell = b"#!/bin/sh\necho distroboxer-test\n";
+        let mut shell_header = Header::new_gnu();
+        shell_header.set_size(shell.len() as u64);
+        shell_header.set_mode(0o755);
+        shell_header.set_cksum();
+        builder.append_data(&mut shell_header, "bin/sh", &shell[..]).unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
@@ -615,6 +677,12 @@ mod tests {
         fs::create_dir_all(rootfs.join("etc")).unwrap();
         fs::write(rootfs.join("usr/lib/os-release"), "ID=alpine\n").unwrap();
         symlink("../usr/lib/os-release", rootfs.join("etc/os-release")).unwrap();
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        fs::write(rootfs.join("bin/sh"), "#!/bin/sh\n").unwrap();
+        let mut shell_permissions = fs::metadata(rootfs.join("bin/sh")).unwrap().permissions();
+        use std::os::unix::fs::PermissionsExt;
+        shell_permissions.set_mode(0o755);
+        fs::set_permissions(rootfs.join("bin/sh"), shell_permissions).unwrap();
 
         validate_rootfs_release_file(&rootfs, "alpine").unwrap();
         assert!(manager.is_installed("alpine").unwrap());
