@@ -997,13 +997,15 @@ private fun DistroCard(
     onPrepare: () -> Unit,
     onInstall: () -> Unit,
 ) {
-    val isBusy = storageStatus?.contains("descarg", ignoreCase = true) == true ||
-        storageStatus?.contains("instal", ignoreCase = true) == true ||
-        storageStatus?.contains("iniciadas", ignoreCase = true) == true
     val hasError = storageStatus?.contains("error", ignoreCase = true) == true ||
         storageStatus?.contains("no se pudo", ignoreCase = true) == true ||
         storageStatus?.contains("fall", ignoreCase = true) == true ||
         storageStatus?.contains("incompatible", ignoreCase = true) == true
+    val isBusy = !hasError && (
+        storageStatus?.contains("descarg", ignoreCase = true) == true ||
+            storageStatus?.contains("instalando", ignoreCase = true) == true ||
+            storageStatus?.contains("en segundo plano", ignoreCase = true) == true
+        )
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
