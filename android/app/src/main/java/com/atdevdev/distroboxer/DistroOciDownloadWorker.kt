@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -13,10 +12,10 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -144,12 +143,12 @@ class DistroOciDownloadWorker(
         }
     }
 
-    private data class Registry(val host: String, val repository: String, val registryBase: String, val tokenUrl: String)
+    private data class Registry(val repository: String, val registryBase: String, val tokenUrl: String)
 
     private fun parseImage(value: String): Registry? {
         val parts = value.split('/')
         if (parts.size < 2) return Registry(
-            "docker.io", "library/$value", "https://registry-1.docker.io",
+            "library/$value", "https://registry-1.docker.io",
             "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/$value:pull",
         )
         val hasRegistry = parts.first().contains('.') || parts.first().contains(':') || parts.first() == "localhost"
@@ -157,11 +156,11 @@ class DistroOciDownloadWorker(
         val repository = if (hasRegistry) parts.drop(1).joinToString("/") else value
         return when (host) {
             "docker.io" -> Registry(
-                host, repository, "https://registry-1.docker.io",
+                repository, "https://registry-1.docker.io",
                 "https://auth.docker.io/token?service=registry.docker.io&scope=repository:$repository:pull",
             )
             "ghcr.io" -> Registry(
-                host, repository, "https://ghcr.io",
+                repository, "https://ghcr.io",
                 "https://ghcr.io/token?scope=repository:$repository:pull",
             )
             else -> null
