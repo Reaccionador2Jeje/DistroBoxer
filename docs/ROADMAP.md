@@ -18,7 +18,7 @@
 - [ ] Confirm official archive provenance and checksums/signatures
 - [x] Implement secure gzip tar extraction with traversal and link validation
 - [ ] Add xz and zstd archive support
-- [ ] Implement OCI manifest, layer, and whiteout handling
+- [x] Implement OCI manifest, layer, and whiteout handling
 - [x] Stage and validate gzip rootfs before promoting it
 - [ ] Recover cleanly from interrupted downloads and extraction
 - [ ] Add storage usage reporting and install/uninstall UI
