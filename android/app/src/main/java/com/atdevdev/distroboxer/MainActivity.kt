@@ -555,19 +555,21 @@ for numero in range(1, 6):
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = if (terminalFullscreen) null else {
-            NavigationBar(
-                containerColor = DistroPalette.surface,
-                contentColor = DistroPalette.text,
-                tonalElevation = 0.dp,
-            ) {
-                AppTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { terminalFullscreen = false; selectedTab = tab },
-                        icon = { Text(tab.symbol, fontWeight = FontWeight.Bold) },
-                        label = { Text(tab.label) },
-                    )
+        bottomBar = {
+            if (!terminalFullscreen) {
+                NavigationBar(
+                    containerColor = DistroPalette.surface,
+                    contentColor = DistroPalette.text,
+                    tonalElevation = 0.dp,
+                ) {
+                    AppTab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { terminalFullscreen = false; selectedTab = tab },
+                            icon = { Text(tab.symbol, fontWeight = FontWeight.Bold) },
+                            label = { Text(tab.label) },
+                        )
+                    }
                 }
             }
         },
