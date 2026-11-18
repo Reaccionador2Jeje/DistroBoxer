@@ -1,9 +1,9 @@
 //! Safe extraction primitives for verified Linux root filesystem archives.
 
 use flate2::read::GzDecoder;
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::collections::HashMap;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Component, Path};
