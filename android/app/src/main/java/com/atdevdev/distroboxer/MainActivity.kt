@@ -269,7 +269,9 @@ for numero in range(1, 6):
                 val runningWork = workInfos.lastOrNull { it.state == WorkInfo.State.RUNNING }
                 val liveLog = runningWork?.progress?.getString(DistroRootfsInstallWorker.KEY_LIVE_LOG)
                     ?: runningWork?.progress?.getString(DistroOciInstallWorker.KEY_LIVE_LOG)
-                    ?: runningWork?.progress?.getString(DistroOciDownloadWorker.KEY_PROGRESS)
+                    ?: runningWork?.progress?.getInt(DistroOciDownloadWorker.KEY_PROGRESS, -1)
+                        ?.takeIf { it >= 0 }
+                        ?.let { "Descargando capas OCI… $it%" }
                     ?: runningWork?.progress?.getInt(DistroArchiveDownloadWorker.KEY_PROGRESS, -1)
                         ?.takeIf { it >= 0 }
                         ?.let { "Descargando rootfs… $it%" }
