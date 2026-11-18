@@ -6,17 +6,20 @@ The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android
 
 ## Project status
 
-Early development — next planned milestone: 0.4.3.
+Early development — multi-distribution OCI installation preview (0.6.0).
 
 Implemented:
 - Shared Rust engine and eight distribution catalog profiles: Debian, Ubuntu, Alpine, Arch Linux, Fedora, openSUSE, Void Linux, and Kali Linux.
-- Architecture compatibility metadata for `aarch64` and `x86_64`.
+- Architecture compatibility metadata per distribution: six OCI profiles support ARM64 and x86_64; the official Arch Linux OCI image is x86_64-only.
 - Validated distribution IDs and isolated app-private storage.
-- JSON metadata and validated installation lifecycle transitions.\n- Initial read-only DistroBoxer Doctor API for storage, metadata, rootfs identity, shell-path, and lifecycle consistency diagnostics.
+- JSON metadata and validated installation lifecycle transitions.
+- Initial read-only DistroBoxer Doctor API for storage, metadata, rootfs identity, shell-path, and lifecycle consistency diagnostics.
 - Passive host and runtime detection for OS, architecture, QEMU System, and PRoot availability.
 - Read-only storage analysis for filesystem capacity, directory usage, distribution rootfs/downloads, and permission hints.
 - Advisory Repair Planner that converts Doctor findings into risk-ranked suggestions without executing repairs.
 - Alpine rootfs download and installation pipeline with HTTPS allowlisting, SHA-256 verification, cancellation, and foreground notifications.
+- Android OCI image pull pipeline for Debian, Ubuntu, Arch Linux, Fedora, openSUSE Tumbleweed, Void Linux, and Kali Linux, with Docker Hub/GHCR token handling and platform manifest selection.
+- OCI manifest and layer digest verification, bounded layer downloads, whiteout/opaque-directory handling, safe staged extraction, and distribution identity validation.
 - Rust gzip tar extraction with path traversal and unsafe link checks, staging validation, and rootfs promotion.
 - Initial QEMU System runtime API for private VM storage, QCOW2 disk creation, kernel/initrd import, TCG serial boot, and loopback-only optional VNC. QEMU executable payloads and boot media are not bundled yet.
 - Existing Android PRoot runtime retained temporarily as the legacy path during the QEMU migration.
@@ -31,13 +34,13 @@ Implemented:
 Still in development:
 - Physical-device validation of PRoot shell startup and interactive I/O.
 - Persistent foreground service for Linux sessions.
-- Trusted rootfs manifests and end-to-end installation for every listed distribution; Alpine is the only current Android install path.
+- Physical-device validation of OCI installation for each supported architecture; Arch Linux is currently x86_64-only.
 - Full X11 compatibility, GPU acceleration, and tested XFCE/LXQt/MATE sessions. The embedded Java X11 server is a lightweight first backend, not a full X.Org replacement.
-- Safe archive/OCI layer extraction and recovery from interrupted extraction for all distro formats.
+- OCI registry signature verification and robust recovery from interrupted multi-layer downloads/extraction.
 - Signed production Android APK/AAB and platform installer bundles.
 - Official F-Droid submission and acceptance.
 
-The catalog profiles describe intended bootstrap formats; they do not mean that every listed distribution is currently installable.
+The Android app now has an OCI installation preview for all non-Alpine profiles. Arch Linux is x86_64-only. OCI images are base container root filesystems, not bootable VM disks, and runtime compatibility still requires device testing.
 
 ## Repository layout
 
@@ -84,7 +87,11 @@ Install the Tauri 2 prerequisites for your operating system, then run:
 cargo run --manifest-path desktop/Cargo.toml
 ```
 
-See [desktop/README.md](desktop/README.md) for platform-specific requirements.\n\n## DistroBoxer Doctor\n\nThe shared Rust engine exposes a read-only diagnostic API. See [docs/DOCTOR.md](docs/DOCTOR.md) for supported checks, Rust examples, diagnostic codes, and safety limitations.
+See [desktop/README.md](desktop/README.md) for platform-specific requirements.
+
+## DistroBoxer Doctor
+
+The shared Rust engine exposes a read-only diagnostic API. See [docs/DOCTOR.md](docs/DOCTOR.md) for supported checks, Rust examples, diagnostic codes, and safety limitations.
 
 ## Runtime Detection
 
@@ -104,7 +111,7 @@ See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot
 
 ## Background work and permissions
 
-Android distribution archives are stored in app-private storage. The WorkManager pipeline uses network connectivity constraints, a foreground data-sync notification, HTTPS source allowlisting, and a required SHA-256 digest. It does not request broad shared-storage access. Downloading an archive is not the same as installing or launching a distribution.
+Android distribution archives are stored in app-private storage. The WorkManager pipelines use network connectivity constraints, foreground data-sync notifications, HTTPS-only registry access, bounded downloads, and SHA-256 verification for archive checksums, OCI manifests, and image layers. It does not request broad shared-storage access. Downloading an archive is not the same as installing or launching a distribution.
 
 ## Releases and F-Droid
 
@@ -115,7 +122,7 @@ F-Droid publication is not yet complete. See [fdroid/README.md](fdroid/README.md
 ## Security principles
 
 - Only download over HTTPS from explicitly allowed distribution domains.
-- Verify a published checksum before accepting an archive.
+- Verify published archive checksums and OCI manifest/layer digests before accepting image content.
 - Reject archive path traversal, unsafe links, and unexpected file types during extraction.
 - Keep distributions inside isolated app-private directories.
 - Bind the embedded X11 listener to loopback only; do not expose it to Wi-Fi.
