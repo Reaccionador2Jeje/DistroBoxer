@@ -318,7 +318,7 @@ mod tests {
         fs::write(rootfs.join("etc/os-release"), "ID=debian\n").unwrap();
         manager.set_status("alpine", InstallStatus::Installed, None).unwrap();
 
-        let report = run_distro_doctor(&manager);
+        let report = run_distro_doctor(&manager, "alpine").unwrap();
         assert!(report.diagnostics.iter().any(|item| item.code == "distro.identity.mismatch"));
         assert!(!report.healthy);
         fs::remove_dir_all(base).unwrap();

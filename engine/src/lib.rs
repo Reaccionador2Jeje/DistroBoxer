@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 mod android_jni;
 
 pub mod doctor;
+pub mod runtime_detection;
 pub mod installer;
 pub mod integrity;
 pub mod metadata;
@@ -16,6 +17,7 @@ pub mod storage;
 
 pub use integrity::{sha256_file, verify_sha256};
 pub use doctor::{run_doctor, run_distro_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
+pub use runtime_detection::{detect_runtimes, normalize_architecture, DetectedRuntime, RuntimeReport};
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
