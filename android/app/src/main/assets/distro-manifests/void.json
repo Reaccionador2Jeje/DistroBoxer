@@ -1,0 +1,11 @@
+{
+  "id": "void",
+  "version": "rolling",
+  "image": "ghcr.io/void-linux/void-glibc-full",
+  "tag": "latest",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "Void Linux official full OCI image"
+}

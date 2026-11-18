@@ -1,0 +1,11 @@
+{
+  "id": "fedora",
+  "version": "latest stable",
+  "image": "library/fedora",
+  "tag": "latest",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "Fedora official Docker image"
+}

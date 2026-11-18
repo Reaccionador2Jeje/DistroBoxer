@@ -11,6 +11,7 @@ mod android_jni;
 pub mod doctor;
 pub mod runtime_detection;
 pub mod repair_planner;
+pub mod oci;
 pub mod installer;
 pub mod integrity;
 pub mod metadata;
@@ -21,6 +22,7 @@ pub use integrity::{sha256_file, verify_sha256};
 pub use doctor::{run_doctor, run_distro_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
 pub use runtime_detection::{detect_runtimes, normalize_architecture, DetectedRuntime, RuntimeReport};
 pub use repair_planner::{plan_repairs, RepairAction, RepairPlan, RepairRisk};
+pub use oci::extract_oci_layers_with_progress;
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
@@ -78,10 +80,10 @@ pub const DISTROS: &[Distro] = &[
         id: "arch",
         name: "Arch Linux",
         package_manager: "pacman",
-        architectures: &["aarch64", "x86_64"],
+        architectures: &["x86_64"],
         homepage: "https://archlinux.org/",
-        bootstrap: "Official bootstrap tarball (architecture-dependent)",
-        archive_format: "tar.zst",
+        bootstrap: "Official OCI base image",
+        archive_format: "oci",
     },
     Distro {
         id: "fedora",
@@ -94,7 +96,7 @@ pub const DISTROS: &[Distro] = &[
     },
     Distro {
         id: "opensuse",
-        name: "openSUSE",
+        name: "openSUSE Tumbleweed",
         package_manager: "zypper",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.opensuse.org/",
@@ -107,8 +109,8 @@ pub const DISTROS: &[Distro] = &[
         package_manager: "xbps",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://voidlinux.org/",
-        bootstrap: "Official rootfs tarball",
-        archive_format: "tar.xz",
+        bootstrap: "Official OCI full rootfs image",
+        archive_format: "oci",
     },
     Distro {
         id: "kali",
@@ -199,6 +201,8 @@ mod tests {
         assert!(is_supported("kali"));
         assert!(supports_architecture("debian", "aarch64"));
         assert!(supports_architecture("alpine", "x86_64"));
+        assert!(supports_architecture("arch", "x86_64"));
+        assert!(!supports_architecture("arch", "aarch64"));
         assert!(!supports_architecture("ubuntu", "armv7l"));
         assert_eq!(linux_arch_from_android_abi("arm64-v8a"), Some("aarch64"));
         assert_eq!(linux_arch_from_android_abi("x86_64"), Some("x86_64"));

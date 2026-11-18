@@ -34,6 +34,45 @@ object DistroDownloadScheduler {
         enqueueInternal(context, distroId, sourceUrl, "", checksumUrl, fileName)
     }
 
+    /** Schedules a public OCI image pull followed by verified native layer application. */
+    fun enqueueOci(
+        context: Context,
+        distroId: String,
+        image: String,
+        tag: String,
+        architecture: String,
+    ) {
+        val download = OneTimeWorkRequestBuilder<DistroOciDownloadWorker>()
+            .setInputData(
+                workDataOf(
+                    DistroOciDownloadWorker.KEY_DISTRO_ID to distroId,
+                    DistroOciDownloadWorker.KEY_IMAGE to image,
+                    DistroOciDownloadWorker.KEY_TAG to tag,
+                    DistroOciDownloadWorker.KEY_ARCH to architecture,
+                ),
+            )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build(),
+            )
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+
+        val install = OneTimeWorkRequestBuilder<DistroOciInstallWorker>()
+            .setInputMerger(OverwritingInputMerger::class.java)
+            .build()
+
+        WorkManager.getInstance(context)
+            .beginUniqueWork(
+                "distroboxer-install-$distroId",
+                ExistingWorkPolicy.KEEP,
+                download,
+            )
+            .then(install)
+            .enqueue()
+    }
+
     private fun enqueueInternal(
         context: Context,
         distroId: String,

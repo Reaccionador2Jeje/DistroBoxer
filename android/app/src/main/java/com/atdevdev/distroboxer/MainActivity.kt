@@ -82,10 +82,10 @@ private val fallbackDistros = listOf(
     DistroUi("debian", "Debian", "APT", "Estable y versátil", "OCI", "oci", "https://www.debian.org/"),
     DistroUi("ubuntu", "Ubuntu", "APT", "Popular y fácil de usar", "OCI", "oci", "https://ubuntu.com/"),
     DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista", "Minirootfs", "tar.gz", "https://alpinelinux.org/"),
-    DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release", "Bootstrap", "tar.zst", "https://archlinux.org/"),
+    DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release · solo x86_64", "OCI", "oci", "https://archlinux.org/"),
     DistroUi("fedora", "Fedora", "DNF", "Tecnología y software reciente", "OCI", "oci", "https://fedoraproject.org/"),
-    DistroUi("opensuse", "openSUSE", "ZYPPER", "Distribución comunitaria", "OCI", "oci", "https://www.opensuse.org/"),
-    DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "Rootfs tarball", "tar.xz", "https://voidlinux.org/"),
+    DistroUi("opensuse", "openSUSE Tumbleweed", "ZYPPER", "Distribución rolling comunitaria", "OCI", "oci", "https://www.opensuse.org/"),
+    DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "OCI", "oci", "https://voidlinux.org/"),
     DistroUi("kali", "Kali Linux", "APT", "Distribución especializada", "OCI", "oci", "https://www.kali.org/"),
 )
 
@@ -268,6 +268,10 @@ for numero in range(1, 6):
                 val completed = workInfos.lastOrNull { it.state == WorkInfo.State.SUCCEEDED }
                 val runningWork = workInfos.lastOrNull { it.state == WorkInfo.State.RUNNING }
                 val liveLog = runningWork?.progress?.getString(DistroRootfsInstallWorker.KEY_LIVE_LOG)
+                    ?: runningWork?.progress?.getString(DistroOciInstallWorker.KEY_LIVE_LOG)
+                    ?: runningWork?.progress?.getInt(DistroOciDownloadWorker.KEY_PROGRESS, -1)
+                        ?.takeIf { it >= 0 }
+                        ?.let { "Descargando capas OCI… $it%" }
                     ?: runningWork?.progress?.getInt(DistroArchiveDownloadWorker.KEY_PROGRESS, -1)
                         ?.takeIf { it >= 0 }
                         ?.let { "Descargando rootfs… $it%" }
@@ -657,22 +661,37 @@ for numero in range(1, 6):
                                         Build.SUPPORTED_ABIS.contains("x86_64") -> "x86_64"
                                         else -> null
                                     }
-                                    if (distro.id != "alpine") {
-                                        storageStates[distro.id] = "El instalador de esta distro todavía está en desarrollo."
-                                    } else if (linuxArch == null) {
+                                    if (linuxArch == null) {
                                         storageStates[distro.id] = "Arquitectura no compatible."
                                     } else {
                                         runCatching {
-                                            val manifest = context.assets.open("distro-manifests/alpine.json")
-                                                .bufferedReader().use { JSONObject(it.readText()) }
-                                            val sourceUrl = manifest.getJSONObject("rootfs_source").getString(linuxArch)
-                                            val checksumUrl = manifest.getJSONObject("checksum_source").getString(linuxArch)
-                                            val fileName = Uri.parse(sourceUrl).lastPathSegment ?: error("Archivo inválido")
-                                            DistroDownloadScheduler.enqueueWithChecksumManifest(
-                                                context, distro.id, sourceUrl, checksumUrl, fileName,
-                                            )
+                                            if (distro.id == "alpine") {
+                                                val manifest = context.assets.open("distro-manifests/alpine.json")
+                                                    .bufferedReader().use { JSONObject(it.readText()) }
+                                                val sourceUrl = manifest.getJSONObject("rootfs_source").getString(linuxArch)
+                                                val checksumUrl = manifest.getJSONObject("checksum_source").getString(linuxArch)
+                                                val fileName = Uri.parse(sourceUrl).lastPathSegment ?: error("Archivo inválido")
+                                                DistroDownloadScheduler.enqueueWithChecksumManifest(
+                                                    context, distro.id, sourceUrl, checksumUrl, fileName,
+                                                )
+                                            } else {
+                                                val manifest = context.assets.open("distro-manifests/${distro.id}.json")
+                                                    .bufferedReader().use { JSONObject(it.readText()) }
+                                                val architecture = if (linuxArch == "aarch64") "arm64" else "amd64"
+                                                val supported = manifest.getJSONArray("architectures")
+                                                check((0 until supported.length()).any { supported.getString(it) == architecture }) {
+                                                    "Esta distribución no publica una imagen para $architecture."
+                                                }
+                                                DistroDownloadScheduler.enqueueOci(
+                                                    context = context,
+                                                    distroId = distro.id,
+                                                    image = manifest.getString("image"),
+                                                    tag = manifest.getString("tag"),
+                                                    architecture = architecture,
+                                                )
+                                            }
                                         }.onSuccess {
-                                            storageStates[distro.id] = "Descarga e instalación iniciadas en segundo plano."
+                                            storageStates[distro.id] = "Descarga OCI y verificación iniciadas en segundo plano."
                                         }.onFailure { error ->
                                             storageStates[distro.id] = "No se pudo iniciar: ${error.message}"
                                         }

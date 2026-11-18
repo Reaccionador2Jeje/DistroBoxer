@@ -1,0 +1,11 @@
+{
+  "id": "kali",
+  "version": "kali-rolling",
+  "image": "kalilinux/kali-rolling",
+  "tag": "latest",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "Kali official Docker image"
+}

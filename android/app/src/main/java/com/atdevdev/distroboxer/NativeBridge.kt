@@ -16,6 +16,13 @@ internal object NativeBridge {
 
     external fun nativeIsInstalled(distroId: String, baseDirectory: String): Boolean
 
+    external fun nativeInstallOci(
+        distroId: String,
+        baseDirectory: String,
+        manifestPath: String,
+        listener: NativeInstallListener,
+    ): String?
+
     external fun nativeInstallTarGz(
         distroId: String,
         baseDirectory: String,

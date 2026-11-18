@@ -1,0 +1,11 @@
+{
+  "id": "opensuse",
+  "version": "Tumbleweed",
+  "image": "opensuse/tumbleweed",
+  "tag": "latest",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "openSUSE official Tumbleweed image"
+}

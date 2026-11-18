@@ -18,7 +18,7 @@
 - [ ] Confirm official archive provenance and checksums/signatures
 - [x] Implement secure gzip tar extraction with traversal and link validation
 - [ ] Add xz and zstd archive support
-- [ ] Implement OCI manifest, layer, and whiteout handling
+- [x] Implement OCI manifest, layer, and whiteout handling
 - [x] Stage and validate gzip rootfs before promoting it
 - [ ] Recover cleanly from interrupted downloads and extraction
 - [ ] Add storage usage reporting and install/uninstall UI
@@ -37,13 +37,17 @@
 - [ ] Validate boot, networking, storage persistence, and lifecycle on physical Android devices
 - [ ] Remove PRoot only after all QEMU acceptance gates pass
 
-## 0.6.0 — Additional distro installers
-- [ ] Debian and Ubuntu OCI installers
-- [ ] Fedora and openSUSE OCI installers
-- [ ] Arch Linux bootstrap installer
-- [ ] Void Linux rootfs installer
-- [ ] Kali Linux OCI installer
-- [ ] Automated install tests per ABI
+## 0.6.0 — Multi-distribution OCI installers
+- [x] Debian and Ubuntu OCI pull/install path
+- [x] Fedora and openSUSE Tumbleweed OCI pull/install path
+- [x] Arch Linux official OCI path (x86_64 only)
+- [x] Void Linux official full OCI rootfs path
+- [x] Kali Linux official rolling OCI path
+- [x] OCI manifest and layer digest verification
+- [x] OCI whiteout and opaque-directory handling
+- [x] Android WorkManager download/install chain for OCI images
+- [ ] Automated registry integration and physical-device install tests per ABI
+- [ ] Upstream image signature/cosign verification
 
 ## 0.7.0 — Desktop runtime
 - [ ] Windows WSL2 integration and capability detection

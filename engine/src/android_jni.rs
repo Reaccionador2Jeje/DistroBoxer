@@ -83,6 +83,55 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeIsInstal
     }
 }
 
+/// Verifies OCI layer digests and atomically installs a container root filesystem.
+#[no_mangle]
+pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallOci(
+    mut env: JNIEnv,
+    _this: JObject,
+    distro_id: JString,
+    base_directory: JString,
+    manifest_path: JString,
+    listener: JObject,
+) -> jstring {
+    let distro_id: String = match env.get_string(&distro_id) {
+        Ok(value) => value.into(),
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let base_directory: String = match env.get_string(&base_directory) {
+        Ok(value) => value.into(),
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let manifest_path: String = match env.get_string(&manifest_path) {
+        Ok(value) => value.into(),
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let result = StorageManager::new(base_directory).install_oci_layers_with_progress(
+        &distro_id,
+        manifest_path,
+        |line| {
+            if let Ok(message) = env.new_string(line) {
+                let message_object: JObject = message.into();
+                let _ = env.call_method(
+                    &listener,
+                    "onInstallLog",
+                    "(Ljava/lang/String;)V",
+                    &[jni::objects::JValue::Object(&message_object)],
+                );
+            }
+        },
+    );
+    let message = match result {
+        Ok(()) => String::new(),
+        Err(error) => format!("{error:#}"),
+    };
+
+    match env.new_string(message) {
+        Ok(value) => value.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
 /// Verifies and atomically installs a gzip-compressed rootfs tarball.
 #[no_mangle]
 pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeInstallTarGz(

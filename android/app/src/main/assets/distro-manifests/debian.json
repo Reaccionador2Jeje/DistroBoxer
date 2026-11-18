@@ -1,0 +1,11 @@
+{
+  "id": "debian",
+  "version": "stable",
+  "image": "library/debian",
+  "tag": "stable-slim",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "source": "Docker Official Image"
+}

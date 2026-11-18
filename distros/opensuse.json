@@ -1,12 +1,15 @@
 {
   "id": "opensuse",
-  "name": "openSUSE",
+  "name": "openSUSE Tumbleweed",
   "package_manager": "zypper",
-  "architectures": ["aarch64", "x86_64"],
-  "bootstrap": "OCI image",
+  "architectures": [
+    "aarch64",
+    "x86_64"
+  ],
+  "bootstrap": "Official openSUSE Tumbleweed OCI image",
   "homepage": "https://www.opensuse.org/",
   "archive_format": "oci",
-  "status": "planned",
-  "rootfs_source": null,
-  "checksum": null
+  "status": "installer-preview",
+  "image": "opensuse/tumbleweed",
+  "tag": "latest"
 }
