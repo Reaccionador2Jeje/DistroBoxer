@@ -79,11 +79,9 @@ class ProotRuntime(context: Context) {
             }
         }
 
-        val outputFile = File.createTempFile("proot-validation-", ".log", appContext.cacheDir)
         val process = ProcessBuilder(command)
             .directory(rootfs)
             .redirectErrorStream(true)
-            .redirectOutput(outputFile)
             .apply {
                 environment().clear()
                 environment()["HOME"] = "/root"
@@ -222,9 +220,11 @@ class ProotRuntime(context: Context) {
             "-b", "/apex",
             "/bin/sh", "-c", script,
         )
+        val outputFile = File.createTempFile("proot-validation-", ".log", appContext.cacheDir)
         val process = ProcessBuilder(command)
             .directory(rootfs)
             .redirectErrorStream(true)
+            .redirectOutput(outputFile)
             .apply {
                 environment().clear()
                 environment()["HOME"] = "/root"
