@@ -4,6 +4,9 @@ import android.content.Context
 import android.system.Os
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
@@ -51,7 +54,15 @@ class ProotRuntime(context: Context) {
         // alterados por el proceso de extracción o por el sistema de archivos.
         // Reparamos únicamente los ejecutables de arranque, tras resolver sus
         // symlinks y comprobar que siguen dentro del rootfs privado.
-        ensureGuestExecutable(rootfs, "bin/sh")
+        val shell = ensureGuestExecutable(rootfs, "bin/sh")
+        // EACCES en execve(/bin/sh) también puede deberse a un cargador ELF
+        // sin permiso de ejecución. Detectamos PT_INTERP en vez de adivinar rutas.
+        readElfInterpreter(shell)?.let { interpreter ->
+            require(interpreter.startsWith("/") && !interpreter.split("/").contains("..")) {
+                "La ruta del cargador ELF de /bin/sh no es válida."
+            }
+            ensureGuestExecutable(rootfs, interpreter.removePrefix("/"))
+        }
         // PRoot crea archivos auxiliares en este directorio del host Android.
         // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
         val prootTempDirectory = prepareProotTempDirectory()
@@ -105,7 +116,7 @@ class ProotRuntime(context: Context) {
      * Los enlaces simbólicos se resuelven antes de cambiar permisos para evitar
      * modificar rutas que apunten fuera del rootfs de la distribución.
      */
-    private fun ensureGuestExecutable(rootfs: File, relativePath: String) {
+    private fun ensureGuestExecutable(rootfs: File, relativePath: String): File {
         val root = rootfs.canonicalFile
         val entry = File(root, relativePath)
         val target = entry.canonicalFile
@@ -143,7 +154,69 @@ class ProotRuntime(context: Context) {
 
         check(target.canRead() && target.canExecute() &&
             directories.all { it.canRead() && it.canExecute() }) {
-            "El shell /$relativePath o alguno de sus directorios sigue sin permisos de lectura/ejecución."
+            "El ejecutable /$relativePath o alguno de sus directorios sigue sin permisos de lectura/ejecución."
+        }
+        return target
+    }
+
+    /** Reads the PT_INTERP segment to locate the exact ELF dynamic loader. */
+    private fun readElfInterpreter(executable: File): String? {
+        RandomAccessFile(executable, "r").use { file ->
+            if (file.length() < 52L) return null
+            val ident = ByteArray(16)
+            file.readFully(ident)
+            if (ident[0] != 0x7f.toByte() || ident[1] != 'E'.code.toByte() ||
+                ident[2] != 'L'.code.toByte() || ident[3] != 'F'.code.toByte()
+            ) return null
+
+            val byteOrder = when (ident[5].toInt() and 0xff) {
+                1 -> ByteOrder.LITTLE_ENDIAN
+                2 -> ByteOrder.BIG_ENDIAN
+                else -> error("El ejecutable /bin/sh usa un formato ELF desconocido.")
+            }
+            val is64Bit = when (ident[4].toInt() and 0xff) {
+                1 -> false
+                2 -> true
+                else -> error("El ejecutable /bin/sh usa una clase ELF desconocida.")
+            }
+            val headerSize = if (is64Bit) 64 else 52
+            require(file.length() >= headerSize.toLong()) { "La cabecera ELF de /bin/sh está truncada." }
+            val header = ByteArray(headerSize)
+            file.seek(0)
+            file.readFully(header)
+            val view = ByteBuffer.wrap(header).order(byteOrder)
+            val programHeaderOffset = if (is64Bit) view.getLong(32) else view.getInt(28).toLong() and 0xffffffffL
+            val entrySize = view.getShort(if (is64Bit) 54 else 42).toInt() and 0xffff
+            val entryCount = view.getShort(if (is64Bit) 56 else 44).toInt() and 0xffff
+            val minimumEntrySize = if (is64Bit) 56 else 32
+            require(entrySize >= minimumEntrySize && entryCount <= 1024 && programHeaderOffset >= 0L) {
+                "La tabla ELF de /bin/sh no es válida."
+            }
+
+            repeat(entryCount) { index ->
+                val offset = programHeaderOffset + index.toLong() * entrySize.toLong()
+                require(offset >= 0L && offset + entrySize.toLong() <= file.length()) {
+                    "La tabla de segmentos ELF de /bin/sh está truncada."
+                }
+                val programHeader = ByteArray(entrySize)
+                file.seek(offset)
+                file.readFully(programHeader)
+                val ph = ByteBuffer.wrap(programHeader).order(byteOrder)
+                if (ph.getInt(0) == 3) { // PT_INTERP
+                    val interpreterOffset = if (is64Bit) ph.getLong(8) else ph.getInt(4).toLong() and 0xffffffffL
+                    val interpreterSize = if (is64Bit) ph.getLong(32) else ph.getInt(16).toLong() and 0xffffffffL
+                    require(interpreterOffset >= 0L && interpreterSize >= 2L && interpreterSize <= 4096L &&
+                        interpreterOffset + interpreterSize <= file.length()
+                    ) { "El segmento PT_INTERP de /bin/sh no es válido." }
+                    val bytes = ByteArray(interpreterSize.toInt())
+                    file.seek(interpreterOffset)
+                    file.readFully(bytes)
+                    val end = bytes.indexOf(0.toByte())
+                    require(end > 0) { "La ruta del cargador ELF de /bin/sh no es válida." }
+                    return String(bytes, 0, end, StandardCharsets.UTF_8)
+                }
+            }
+            return null
         }
     }
 
