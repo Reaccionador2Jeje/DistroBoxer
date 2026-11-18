@@ -14,6 +14,7 @@ pub mod installer;
 pub mod integrity;
 pub mod metadata;
 pub mod storage;
+pub mod storage_analyzer;
 
 pub use integrity::{sha256_file, verify_sha256};
 pub use doctor::{run_doctor, run_distro_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
@@ -21,6 +22,7 @@ pub use runtime_detection::{detect_runtimes, normalize_architecture, DetectedRun
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
+pub use storage_analyzer::{analyze_storage, DirectoryUsage, DistributionStorage, StorageFinding, StorageFindingLevel, StorageReport};
 
 /// Metadata for a supported Linux distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
