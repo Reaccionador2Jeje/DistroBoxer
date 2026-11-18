@@ -43,11 +43,11 @@ jobs:
               ),
               Path("scripts/build/termux_step_handle_buildarch.sh"): (
                   'local TERMUX_ARCH_FILE=/data/TERMUX_ARCH',
-                  'local TERMUX_ARCH_FILE="$TERMUX_TOPDIR/TERMUX_ARCH"',
+                  'local TERMUX_ARCH_FILE="$TERMUX_TOPDIR/TERMUX_ARCH"\\n\\tmkdir -p "$TERMUX_TOPDIR"',
               ),
               Path("scripts/build/termux_step_setup_variables.sh"): (
                   'TERMUX_BUILT_PACKAGES_DIRECTORY="/data/data/.built-packages"',
-                  'TERMUX_BUILT_PACKAGES_DIRECTORY="$TERMUX_TOPDIR/.built-packages"',
+                  'TERMUX_BUILT_PACKAGES_DIRECTORY="$TERMUX_TOPDIR/.built-packages"\\n\\tmkdir -p "$TERMUX_BUILT_PACKAGES_DIRECTORY"',
               ),
           }
 
