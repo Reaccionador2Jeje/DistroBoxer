@@ -225,7 +225,12 @@ fn inspect_distro(storage: &StorageManager, id: &str, diagnostics: &mut Vec<Diag
         let (key, value) = line.split_once('=')?;
         (key.trim() == "ID").then(|| value.trim().trim_matches('"').trim_matches('\'').to_ascii_lowercase())
     });
-    if actual_id.as_deref() != Some(id) {
+    let identity_matches = match (id, actual_id.as_deref()) {
+        ("opensuse", Some("opensuse" | "opensuse-leap" | "opensuse-tumbleweed")) => true,
+        (expected, Some(actual)) => expected == actual,
+        _ => false,
+    };
+    if !identity_matches {
         push(diagnostics, "distro.identity.mismatch", DiagnosticLevel::Error, Some(id),
             &format!("Expected os-release ID '{id}', found '{}'.", actual_id.as_deref().unwrap_or("missing")),
             Some(&canonical_release));
@@ -307,6 +312,20 @@ mod tests {
         let result = run_distro_doctor(&StorageManager::new(&base), "../outside");
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidInput);
         assert!(!base.exists());
+    }
+
+    #[test]
+    fn accepts_official_opensuse_tumbleweed_identity() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("opensuse").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("etc")).unwrap();
+        fs::write(rootfs.join("etc/os-release"), "ID=opensuse-tumbleweed\n").unwrap();
+        manager.set_status("opensuse", InstallStatus::Installed, None).unwrap();
+
+        let report = run_distro_doctor(&manager, "opensuse").unwrap();
+        assert!(!report.diagnostics.iter().any(|item| item.code == "distro.identity.mismatch"));
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
