@@ -241,6 +241,7 @@ private fun DistroBoxerScreen() {
     val workspace = remember(context) { ProjectWorkspace(context) }
     val coroutineScope = rememberCoroutineScope()
     val storageStates = remember { mutableStateMapOf<String, String>() }
+    val activeInstalls = remember { mutableStateMapOf<String, Boolean>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var selectedDistroId by remember { mutableStateOf("alpine") }
     var search by remember { mutableStateOf("") }
@@ -307,11 +308,12 @@ for numero in range(1, 6):
                     completed != null -> "La tarea terminó, pero no se encontró un rootfs válido. Reintenta la instalación."
                     else -> null
                 }
-                distro.id to (status to liveLog)
+                distro.id to Triple(status, liveLog, active)
             }
         }
         latest.forEach { (id, result) ->
-            val (status, liveLog) = result
+            val (status, liveLog, active) = result
+            activeInstalls[id] = active
             if (status != null) storageStates[id] = status
             else if (storageStates[id]?.contains("Instalada", ignoreCase = true) == true) {
                 storageStates.remove(id)
@@ -675,6 +677,7 @@ for numero in range(1, 6):
                                 engineConnected = catalog.engineConnected,
                                 storageStatus = storageStates[distro.id],
                                 installed = storageStates[distro.id]?.contains("Instalada", ignoreCase = true) == true,
+                                installBusy = activeInstalls[distro.id] == true,
                                 onOpenTerminal = {
                                     selectDistroForTerminal(distro.id)
                                     selectedTab = AppTab.TERMINAL
@@ -993,6 +996,7 @@ private fun DistroCard(
     engineConnected: Boolean,
     storageStatus: String?,
     installed: Boolean,
+    installBusy: Boolean,
     onOpenTerminal: () -> Unit,
     onPrepare: () -> Unit,
     onInstall: () -> Unit,
@@ -1001,11 +1005,7 @@ private fun DistroCard(
         storageStatus?.contains("no se pudo", ignoreCase = true) == true ||
         storageStatus?.contains("fall", ignoreCase = true) == true ||
         storageStatus?.contains("incompatible", ignoreCase = true) == true
-    val isBusy = !hasError && (
-        storageStatus?.contains("descarg", ignoreCase = true) == true ||
-            storageStatus?.contains("instalando", ignoreCase = true) == true ||
-            storageStatus?.contains("en segundo plano", ignoreCase = true) == true
-        )
+    val isBusy = installBusy && !installed
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
@@ -1066,7 +1066,7 @@ private fun DistroCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onPrepare,
-                    enabled = engineConnected && !installed,
+                    enabled = engineConnected && !installed && !isBusy,
                     modifier = Modifier.weight(1f),
                 ) { Text("Preparar espacio") }
                 if (distro.id == "alpine" && !installed) {
