@@ -228,6 +228,54 @@ mod tests {
         std::env::temp_dir().join(format!("distroboxer-oci-{n}"))
     }
 
+    fn gzip_layer(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let mut tar_bytes = tar::Builder::new(Vec::new());
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(contents.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar_bytes.append_data(&mut header, path, *contents).unwrap();
+        }
+        let tar_bytes = tar_bytes.into_inner().unwrap();
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[test]
+    fn applies_layers_and_honours_root_level_whiteouts() {
+        let base = temp_dir();
+        let downloads = base.join("downloads");
+        let rootfs = base.join("rootfs");
+        fs::create_dir_all(&downloads).unwrap();
+
+        let first = gzip_layer(&[("remove-me", b"old"), ("etc/os-release", b"ID=debian\n")]);
+        let second = gzip_layer(&[(".wh.remove-me", b"")]);
+        fs::write(downloads.join("layer-000.blob"), &first).unwrap();
+        fs::write(downloads.join("layer-001.blob"), &second).unwrap();
+
+        let digest0 = crate::sha256_file(downloads.join("layer-000.blob")).unwrap();
+        let digest1 = crate::sha256_file(downloads.join("layer-001.blob")).unwrap();
+        let manifest = serde_json::json!({
+            "schemaVersion": 1,
+            "layers": [
+                {"digest": format!("sha256:{digest0}"), "media_type": "application/vnd.oci.image.layer.v1.tar+gzip", "file": "layer-000.blob"},
+                {"digest": format!("sha256:{digest1}"), "media_type": "application/vnd.oci.image.layer.v1.tar+gzip", "file": "layer-001.blob"}
+            ]
+        });
+        let manifest_path = downloads.join("manifest.json");
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        extract_oci_layers_with_progress(&manifest_path, &rootfs, |_| {}).unwrap();
+        assert!(!rootfs.join("remove-me").exists());
+        assert_eq!(fs::read_to_string(rootfs.join("etc/os-release")).unwrap(), "ID=debian\n");
+        fs::remove_dir_all(base).unwrap();
+    }
+
     #[test]
     fn rejects_parent_paths_in_whiteouts() {
         assert!(validate_relative(Path::new("../outside")).is_err());
