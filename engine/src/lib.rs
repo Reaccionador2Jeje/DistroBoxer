@@ -234,6 +234,15 @@ mod tests {
         fs::create_dir_all(rootfs.join("etc")).expect("rootfs directories should be created");
         fs::write(rootfs.join("etc/os-release"), "ID=debian\n")
             .expect("release file should be written");
+        fs::create_dir_all(rootfs.join("bin")).expect("shell directory should be created");
+        let shell = rootfs.join("bin/sh");
+        fs::write(&shell, "#!/bin/sh\n").expect("shell should be written");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&shell, fs::Permissions::from_mode(0o755))
+                .expect("shell should be executable");
+        }
         assert!(is_installed(&base, "debian"));
 
         fs::remove_dir_all(&base).expect("test directory should be removed");
