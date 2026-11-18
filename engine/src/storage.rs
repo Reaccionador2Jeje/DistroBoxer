@@ -299,14 +299,20 @@ impl StorageManager {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
         if distro.archive_format != "oci" {
-            return Err(io::Error::new(io::ErrorKind::Unsupported, "distribution does not use OCI bootstrap"));
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "distribution does not use OCI bootstrap",
+            ));
         }
 
         let distro_dir = self.prepare_distro(id)?;
         let downloads_dir = fs::canonicalize(distro_dir.join("downloads"))?;
         let manifest_path = fs::canonicalize(manifest_path)?;
         if !manifest_path.starts_with(&downloads_dir) {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "OCI manifest must be inside private downloads"));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "OCI manifest must be inside private downloads",
+            ));
         }
 
         self.set_status(id, InstallStatus::NotInstalled, None)?;
@@ -319,11 +325,16 @@ impl StorageManager {
         let result = (|| {
             remove_real_directory_if_present(&staging)?;
             if fs::symlink_metadata(&backup).is_ok() {
-                return Err(io::Error::new(io::ErrorKind::AlreadyExists, "rootfs backup exists; manual recovery is required"));
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "rootfs backup exists; manual recovery is required",
+                ));
             }
             fs::create_dir(&staging)?;
             progress("Aplicando capas OCI verificadas…".to_owned());
-            crate::oci::extract_oci_layers_with_progress(&manifest_path, &staging, |line| progress(line))?;
+            crate::oci::extract_oci_layers_with_progress(&manifest_path, &staging, |line| {
+                progress(line)
+            })?;
             progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
@@ -567,13 +578,17 @@ mod tests {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, "etc/os-release", &contents[..]).unwrap();
+        builder
+            .append_data(&mut header, "etc/os-release", &contents[..])
+            .unwrap();
         let shell = b"#!/bin/sh\necho distroboxer-test\n";
         let mut shell_header = Header::new_gnu();
         shell_header.set_size(shell.len() as u64);
         shell_header.set_mode(0o755);
         shell_header.set_cksum();
-        builder.append_data(&mut shell_header, "bin/sh", &shell[..]).unwrap();
+        builder
+            .append_data(&mut shell_header, "bin/sh", &shell[..])
+            .unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
@@ -588,7 +603,9 @@ mod tests {
         });
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
-        manager.install_oci_layers_with_progress("debian", &manifest_path, |_| {}).unwrap();
+        manager
+            .install_oci_layers_with_progress("debian", &manifest_path, |_| {})
+            .unwrap();
         assert!(manager.is_installed("debian").unwrap());
         assert_eq!(
             manager.read_metadata("debian").unwrap().unwrap().status,
@@ -645,7 +662,9 @@ mod tests {
         shell_header.set_size(shell.len() as u64);
         shell_header.set_mode(0o755);
         shell_header.set_cksum();
-        builder.append_data(&mut shell_header, "bin/sh", &shell[..]).unwrap();
+        builder
+            .append_data(&mut shell_header, "bin/sh", &shell[..])
+            .unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
