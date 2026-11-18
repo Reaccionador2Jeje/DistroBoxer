@@ -44,7 +44,22 @@ class DistroOciInstallWorker(
                 )
             }
             if (error == "") {
-                Result.success(workDataOf("installed_distro_id" to distroId))
+                try {
+                    withContext(Dispatchers.IO) {
+                        ProotRuntime(applicationContext).validateDistro(distroId)
+                    }
+                    Result.success(workDataOf("installed_distro_id" to distroId))
+                } catch (validationError: Exception) {
+                    val reason = "La instalación se extrajo, pero no pudo ejecutarse con PRoot: ${validationError.message ?: "falló la prueba de entorno"}"
+                    runCatching {
+                        NativeBridge.nativeSetInstallFailed(
+                            distroId,
+                            applicationContext.filesDir.absolutePath,
+                            reason,
+                        )
+                    }
+                    Result.failure(workDataOf(DistroOciDownloadWorker.KEY_ERROR to reason))
+                }
             } else {
                 Result.failure(workDataOf(DistroOciDownloadWorker.KEY_ERROR to (error ?: "OCI installation failed")))
             }
