@@ -478,6 +478,7 @@ mod tests {
         manager
             .set_status("alpine", InstallStatus::Installed, None)
             .unwrap();
+        fs::remove_dir_all(manager.distro_dir("alpine").unwrap().join("rootfs")).unwrap();
 
         let report = run_distro_doctor(&manager, "alpine").unwrap();
         assert!(report
