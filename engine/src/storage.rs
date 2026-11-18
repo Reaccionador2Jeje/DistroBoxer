@@ -496,6 +496,52 @@ mod tests {
     }
 
     #[test]
+    fn installs_verified_oci_layers_and_promotes_rootfs() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        use tar::{Builder, Header};
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let distro_dir = manager.prepare_distro("debian").unwrap();
+        let oci_dir = distro_dir.join("downloads/oci");
+        fs::create_dir_all(&oci_dir).unwrap();
+
+        let archive_path = oci_dir.join("layer-000.blob");
+        let file = fs::File::create(&archive_path).unwrap();
+        let encoder = GzEncoder::new(file, Compression::default());
+        let mut builder = Builder::new(encoder);
+        let contents = b"ID=debian\n";
+        let mut header = Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, "etc/os-release", &contents[..]).unwrap();
+        builder.into_inner().unwrap().finish().unwrap();
+
+        let digest = crate::sha256_file(&archive_path).unwrap();
+        let manifest_path = oci_dir.join("manifest.json");
+        let manifest = serde_json::json!({
+            "schemaVersion": 1,
+            "layers": [{
+                "digest": format!("sha256:{digest}"),
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "file": "layer-000.blob"
+            }]
+        });
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        manager.install_oci_layers_with_progress("debian", &manifest_path, |_| {}).unwrap();
+        assert!(manager.is_installed("debian").unwrap());
+        assert_eq!(
+            manager.read_metadata("debian").unwrap().unwrap().status,
+            InstallStatus::Installed
+        );
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn rejects_gzip_installer_for_oci_distribution() {
         let base = temp_dir();
         let manager = StorageManager::new(&base);
