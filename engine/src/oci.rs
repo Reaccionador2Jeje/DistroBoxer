@@ -77,13 +77,13 @@ pub fn extract_oci_layers_with_progress(
         }
 
         progress(format!("Aplicando capa OCI {}/{}…", index + 1, manifest.layers.len()));
-        let (layer_bytes, layer_entries) = apply_layer(&blob, &layer.media_type, &root, &mut progress)?;
-        total_unpacked_bytes = total_unpacked_bytes.checked_add(layer_bytes)
-            .filter(|bytes| *bytes <= MAX_OCI_UNPACKED_BYTES)
-            .ok_or_else(|| invalid("OCI image exceeds the total uncompressed size limit"))?;
-        total_entries = total_entries.checked_add(layer_entries)
-            .filter(|count| *count <= MAX_OCI_ENTRIES)
-            .ok_or_else(|| invalid("OCI image contains too many total entries"))?;
+        let remaining_bytes = MAX_OCI_UNPACKED_BYTES.saturating_sub(total_unpacked_bytes);
+        let remaining_entries = MAX_OCI_ENTRIES.saturating_sub(total_entries);
+        let (layer_bytes, layer_entries) = apply_layer(
+            &blob, &layer.media_type, &root, remaining_bytes, remaining_entries, &mut progress,
+        )?;
+        total_unpacked_bytes += layer_bytes;
+        total_entries += layer_entries;
     }
     progress(format!("Se aplicaron {} capas OCI.", manifest.layers.len()));
     Ok(())
@@ -93,6 +93,8 @@ fn apply_layer(
     blob: &Path,
     media_type: &str,
     root: &Path,
+    max_unpacked_bytes: u64,
+    max_entries: usize,
     progress: &mut dyn FnMut(String),
 ) -> io::Result<(u64, usize)> {
     let compressed = match media_type {
@@ -106,7 +108,8 @@ fn apply_layer(
         )),
     };
 
-    let (whiteouts, uncompressed_bytes, entry_count) = collect_whiteouts(blob, compressed)?;
+    let (whiteouts, uncompressed_bytes, entry_count) =
+        collect_whiteouts(blob, compressed, max_unpacked_bytes, max_entries)?;
     for marker in &whiteouts {
         apply_whiteout(root, marker)?;
     }
@@ -125,7 +128,12 @@ fn apply_layer(
     Ok((uncompressed_bytes, entry_count))
 }
 
-fn collect_whiteouts(blob: &Path, compressed: bool) -> io::Result<(Vec<PathBuf>, u64, usize)> {
+fn collect_whiteouts(
+    blob: &Path,
+    compressed: bool,
+    max_unpacked_bytes: u64,
+    max_entries: usize,
+) -> io::Result<(Vec<PathBuf>, u64, usize)> {
     let file = File::open(blob)?;
     let reader: Box<dyn Read> = if compressed {
         Box::new(GzDecoder::new(file))
@@ -139,11 +147,11 @@ fn collect_whiteouts(blob: &Path, compressed: bool) -> io::Result<(Vec<PathBuf>,
     for item in archive.entries()? {
         let entry = item?;
         entry_count += 1;
-        if entry_count > MAX_LAYER_ENTRIES {
+        if entry_count > MAX_LAYER_ENTRIES || entry_count > max_entries {
             return Err(invalid("OCI layer contains too many entries"));
         }
         uncompressed_bytes = uncompressed_bytes.checked_add(entry.header().size()?)
-            .filter(|bytes| *bytes <= MAX_OCI_UNPACKED_BYTES)
+            .filter(|bytes| *bytes <= max_unpacked_bytes && *bytes <= MAX_OCI_UNPACKED_BYTES)
             .ok_or_else(|| invalid("OCI layer exceeds the uncompressed size limit"))?;
         let path = entry.path()?.into_owned();
         validate_relative(&path)?;
