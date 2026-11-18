@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 
 jobs:
@@ -26,9 +26,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -37,23 +34,6 @@ jobs:
 
       - name: Cache Rust dependencies and build artifacts
         uses: Swatinem/rust-cache@v2
-
-      - name: Format Rust sources on same-repository pull requests
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          cargo fmt --all
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -- '*.rs'
-            git commit -m "style(rust): apply rustfmt"
-            git push origin "HEAD:$PR_HEAD_REF"
-            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/rust.yml/dispatches" -f ref="$PR_HEAD_REF"
-          fi
 
       - name: Check formatting
         run: cargo fmt --all -- --check
