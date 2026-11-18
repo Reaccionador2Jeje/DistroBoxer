@@ -421,11 +421,15 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
     }
 
     let release_contents = fs::read_to_string(resolved_release)?;
+    let accepted_ids: &[&str] = match expected_id {
+        "opensuse" => &["ID=opensuse", "ID=opensuse-leap", "ID=opensuse-tumbleweed"],
+        _ => &[],
+    };
     let expected_id_line = format!("ID={expected_id}");
-    if !release_contents
-        .lines()
-        .any(|line| line.trim() == expected_id_line)
-    {
+    if !release_contents.lines().any(|line| {
+        let value = line.trim();
+        value == expected_id_line || accepted_ids.contains(&value)
+    }) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "root filesystem distribution ID does not match the selected profile",
