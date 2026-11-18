@@ -728,8 +728,10 @@ for numero in range(1, 6):
                                                 )
                                             }
                                         }.onSuccess {
+                                            activeInstalls[distro.id] = true
                                             storageStates[distro.id] = "Descarga OCI y verificación iniciadas en segundo plano."
                                         }.onFailure { error ->
+                                            activeInstalls[distro.id] = false
                                             storageStates[distro.id] = "No se pudo iniciar: ${error.message}"
                                         }
                                     }
