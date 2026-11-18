@@ -71,6 +71,9 @@ class DistroOciDownloadWorker(
                 "application/vnd.docker.distribution.manifest.v2+json",
             ).joinToString(", ")
             var manifestResponse = registryGet(parsed, "/v2/${parsed.repository}/manifests/$tag", token, accept)
+            verifyManifestDigest(manifestResponse.first, manifestResponse.second)
+            var resolvedManifestDigest = manifestResponse.second
+                ?: "sha256:" + sha256(manifestResponse.first.toByteArray(Charsets.UTF_8))
             var manifest = JSONObject(manifestResponse.first)
             if (manifest.has("manifests")) {
                 val descriptors = manifest.getJSONArray("manifests")
@@ -79,6 +82,8 @@ class DistroOciDownloadWorker(
                 val digest = selected.getString("digest")
                 require(digest.matches(Regex("sha256:[a-f0-9]{64}"))) { "Invalid platform manifest digest" }
                 manifestResponse = registryGet(parsed, "/v2/${parsed.repository}/manifests/$digest", token, accept)
+                verifyManifestDigest(manifestResponse.first, digest)
+                resolvedManifestDigest = digest
                 manifest = JSONObject(manifestResponse.first)
             }
 
@@ -115,6 +120,9 @@ class DistroOciDownloadWorker(
 
             val layerManifest = JSONObject()
                 .put("schemaVersion", 1)
+                .put("image", imageRef)
+                .put("tag", tag)
+                .put("imageDigest", resolvedManifestDigest)
                 .put("layers", outputLayers)
             val manifestFile = File(directory, "manifest.json")
             manifestFile.writeText(layerManifest.toString(), Charsets.UTF_8)
@@ -198,6 +206,17 @@ class DistroOciDownloadWorker(
             connection.disconnect()
         }
     }
+
+    private fun verifyManifestDigest(body: String, expected: String?) {
+        if (expected.isNullOrBlank()) return
+        require(expected.matches(Regex("sha256:[a-f0-9]{64}"))) { "Registry returned an unsupported manifest digest" }
+        val actual = "sha256:" + sha256(body.toByteArray(Charsets.UTF_8))
+        require(actual == expected) { "OCI manifest digest verification failed" }
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun selectPlatformManifest(descriptors: JSONArray, architecture: String): JSONObject? {
         for (index in 0 until descriptors.length()) {
