@@ -76,7 +76,6 @@ private object DistroPalette {
     val surface = Color(0xFF141F24)
     val surfaceRaised = Color(0xFF1E2D33)
     val panelStrong = Color(0xFF203438)
-    val primarySurface = Color(0xFF29382A)
     val successSurface = Color(0xFF20362D)
     val warningSurface = Color(0xFF352A1F)
     val text = Color(0xFFE9ECE4)
