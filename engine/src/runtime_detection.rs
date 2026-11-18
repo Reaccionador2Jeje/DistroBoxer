@@ -102,8 +102,8 @@ fn command_candidates(command: &str) -> Vec<OsString> {
         return vec![OsString::from(command)];
     }
 
-    let extensions = env::var_os("PATHEXT")
-        .unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+    let extensions =
+        env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
     let mut candidates = vec![OsString::from(command)];
     for extension in extensions.to_string_lossy().split(';') {
         candidates.push(OsString::from(format!("{command}{extension}")));
