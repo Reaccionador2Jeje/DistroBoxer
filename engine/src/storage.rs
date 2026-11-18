@@ -691,6 +691,68 @@ mod tests {
     }
 
     #[test]
+    fn rootfs_with_os_release_but_no_shell_is_not_installed() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("etc")).unwrap();
+        fs::write(rootfs.join("etc/os-release"), "ID=debian\n").unwrap();
+
+        assert!(!manager.is_installed("debian").unwrap());
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_rootfs_shell_symlink_that_escapes_rootfs() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_dir();
+        let outside = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let outside_shell = outside.join("sh");
+        fs::write(&outside_shell, "#!/bin/sh\n").unwrap();
+        symlink(&outside_shell, rootfs.join("bin/sh")).unwrap();
+
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        fs::remove_dir_all(base).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_rootfs_shell_without_execute_permission() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        let shell = rootfs.join("bin/sh");
+        fs::write(&shell, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&shell, fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn rejects_gzip_rootfs_with_wrong_digest() {
         let base = temp_dir();
         let manager = StorageManager::new(&base);
