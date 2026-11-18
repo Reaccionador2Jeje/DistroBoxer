@@ -4,6 +4,7 @@ const search = document.querySelector("#distro-search");
 const refreshButton = document.querySelector("#refresh-catalog");
 const clearSearchButton = document.querySelector("#clear-search");
 let distributions = [];
+let catalogError = null;
 
 const pages = {
   home: ["Tu espacio Linux", "page-home"],
@@ -62,6 +63,7 @@ function renderDistro(distro) {
 }
 
 function renderCatalog() {
+  if (catalogError) return;
   const query = (search?.value || "").trim().toLowerCase();
   const filtered = distributions.filter((distro) =>
     [distro.name, distro.id, distro.package_manager, distro.description, distro.bootstrap, distro.archive_format]
@@ -96,6 +98,7 @@ async function loadCatalog() {
   engineStatus.textContent = "Conectando motor…";
   try {
     distributions = await window.__TAURI__.core.invoke("list_distributions");
+    catalogError = null;
     renderCatalog();
     document.querySelector("#stat-distros").textContent = String(distributions.length);
     document.querySelector("#stat-engine").textContent = "ONLINE";
@@ -108,6 +111,8 @@ async function loadCatalog() {
     document.querySelector("#settings-engine").textContent = "No disponible";
     document.querySelector("#distro-count").textContent = "Catálogo no disponible";
     const message = error instanceof Error ? error.message : String(error);
+    catalogError = message;
+    if (clearSearchButton) clearSearchButton.hidden = !(search?.value.trim());
     const panel = document.createElement("div");
     panel.className = "error-state";
     const title = document.createElement("strong");
