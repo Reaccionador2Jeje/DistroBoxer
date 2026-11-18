@@ -63,14 +63,14 @@ class DistroOciDownloadWorker(
                 it.name.matches(Regex("layer-[0-9]{3}\\.blob")) || it.name == "manifest.json"
             }?.forEach { it.delete() }
 
-            val token = fetchToken(parsed, imageRef)
+            val token = fetchToken(parsed)
             val accept = listOf(
                 "application/vnd.oci.image.index.v1+json",
                 "application/vnd.docker.distribution.manifest.list.v2+json",
                 "application/vnd.oci.image.manifest.v1+json",
                 "application/vnd.docker.distribution.manifest.v2+json",
             ).joinToString(", ")
-            var manifestResponse = registryGet(parsed, "/v2/$imageRef/manifests/$tag", token, accept)
+            var manifestResponse = registryGet(parsed, "/v2/${parsed.repository}/manifests/$tag", token, accept)
             var manifest = JSONObject(manifestResponse.first)
             if (manifest.has("manifests")) {
                 val descriptors = manifest.getJSONArray("manifests")
@@ -78,7 +78,7 @@ class DistroOciDownloadWorker(
                     ?: error("The OCI image does not publish $architecture")
                 val digest = selected.getString("digest")
                 require(digest.matches(Regex("sha256:[a-f0-9]{64}"))) { "Invalid platform manifest digest" }
-                manifestResponse = registryGet(parsed, "/v2/$imageRef/manifests/$digest", token, accept)
+                manifestResponse = registryGet(parsed, "/v2/${parsed.repository}/manifests/$digest", token, accept)
                 manifest = JSONObject(manifestResponse.first)
             }
 
@@ -102,7 +102,7 @@ class DistroOciDownloadWorker(
 
                 val fileName = "layer-%03d.blob".format(index)
                 val target = File(directory, fileName)
-                downloadBlob(parsed, imageRef, digest, token, target, size)
+                downloadBlob(parsed, digest, token, target, size)
                 val output = JSONObject()
                     .put("digest", digest)
                     .put("media_type", mediaType)
@@ -158,7 +158,7 @@ class DistroOciDownloadWorker(
         }
     }
 
-    private fun fetchToken(registry: Registry, image: String): String {
+    private fun fetchToken(registry: Registry): String {
         val connection = URL(registry.tokenUrl).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 20000
@@ -213,13 +213,12 @@ class DistroOciDownloadWorker(
 
     private suspend fun downloadBlob(
         registry: Registry,
-        image: String,
         digest: String,
         token: String,
         target: File,
         expectedSize: Long,
     ) {
-        var currentUrl = "${registry.registryBase}/v2/$image/blobs/$digest"
+        var currentUrl = "${registry.registryBase}/v2/${registry.repository}/blobs/$digest"
         repeat(MAX_REDIRECTS + 1) { redirect ->
             val connection = URL(currentUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = 20000
