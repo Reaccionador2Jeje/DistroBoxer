@@ -13,8 +13,9 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 - Debian, Ubuntu, Arch Linux, Fedora, openSUSE Tumbleweed, Void Linux, and Kali Linux have OCI registry install manifests and WorkManager download/install chains. Arch's official OCI image is x86_64-only; the other profiles support ARM64 and x86_64.
 - QEMU is the target primary Android runtime. `QemuRuntime` now provides private VM directories, safe kernel/initrd import, QCOW2 creation, TCG boot command construction, serial stdio, and optional loopback-only VNC.
 - PRoot remains in the app temporarily as a legacy path; it will not be removed until QEMU passes the physical-device acceptance gates.
-- On first launch, the app copies the matching PRoot binary into private app storage and verifies SHA-256.
-- The Terminal screen is connected to an interactive PRoot shell and supports sending commands and displaying output.
+- The ABI-matched PRoot executable is packaged as an Android native payload in `nativeLibraryDir`; startup verifies its Unix execute bits and Android execute access.
+- The Terminal screen is connected to an interactive PRoot shell and supports sending commands and displaying output. Startup repairs only required guest shell traversal bits, prepares `/root` and `/tmp`, and uses a tested app-private temporary directory.
+- PRoot binds only `/dev`, `/proc`, and `/sys` when available; Android `/system` and `/apex` are not exposed to the guest. Early process exits surface their actual output instead of appearing as successful connections.
 - The Programar screen includes a Python source editor, private project saving, and a path that copies the file into Alpine and runs it through the shell.
 - A pinned Java X11 server is embedded in the Android app. The display surface is shown inside Compose and the TCP listener is patched to bind only to loopback.
 - XFCE is the first experimental desktop target; full X11 extension and desktop compatibility is not yet verified.
@@ -23,7 +24,7 @@ DistroBoxer Android is a native Kotlin + Jetpack Compose app backed by the Rust 
 
 - Multi-distro OCI installation is an implementation preview. Automated registry integration tests and physical-device installation tests remain pending. OCI images are container base root filesystems, not full bootable VM images. Arch is x86_64-only.
 - The reusable `qemu-runtime.yml` workflow builds pinned QEMU 11.1.3 for Android ARM64 through a pinned Termux cross-build system. It packages `qemu-system-aarch64`, `qemu-img`, and their shared-library closure as APK assets. `QemuRuntime` extracts them into app-private storage and supplies `LD_LIBRARY_PATH`. The first successful CI run and physical-device validation are still required; a guest kernel/initramfs and VNC viewer are not bundled yet.
-- The existing PRoot shell remains the currently wired terminal path during this migration.
+- The PRoot shell remains the currently wired terminal path during this migration. Permission hardening is implemented, but a successful boot still needs physical-device testing; Android SELinux and ptrace restrictions cannot be bypassed by chmod.
 - Python must be installed inside Alpine before running Python projects (for example, `apk add python3`).
 - A persistent foreground service for long-running Linux sessions is not implemented.
 - The embedded Java X11 server is lightweight, not a full X.Org replacement; GLX, GPU acceleration, and complete XFCE/LXQt/MATE support are not promised.
