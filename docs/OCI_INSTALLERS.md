@@ -14,6 +14,8 @@ DistroBoxer now has an Android OCI pull-and-install path for the non-Alpine cata
 | Void Linux | `ghcr.io/void-linux/void-glibc-full` | `latest` | Yes | Yes |
 | Kali Linux | `kalilinux/kali-rolling` | `latest` | Yes | Yes |
 
+Upstream references: [Debian](https://hub.docker.com/_/debian), [Ubuntu](https://hub.docker.com/_/ubuntu), [Arch Linux](https://github.com/archlinux/archlinux-docker), [Fedora](https://hub.docker.com/_/fedora), [openSUSE Tumbleweed](https://hub.docker.com/r/opensuse/tumbleweed), [Void Linux](https://voidlinux.org/download/), and [Kali Linux](https://www.kali.org/docs/containers/official-kalilinux-docker-images/).
+
 The image references are maintained in `android/app/src/main/assets/distro-manifests/` and mirrored in `distros/*.json`. Tags are upstream rolling/stable channels, not immutable release pins. At pull time DistroBoxer resolves the tag to an OCI manifest and records its digest; every layer descriptor is SHA-256 verified.
 
 Arch Linux publishes an official OCI image for x86_64, not ARM64. DistroBoxer deliberately reports that limitation instead of installing an unrelated or incompatible ARM image.
