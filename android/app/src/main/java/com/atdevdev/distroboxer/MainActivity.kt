@@ -1081,18 +1081,23 @@ private fun DistroCard(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onPrepare,
-                    enabled = engineConnected && !installed && !isBusy,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Preparar espacio") }
-                if (distro.id == "alpine" && !installed) {
-                    Button(onClick = onInstall, enabled = engineConnected && !isBusy) {
-                        Text(if (isBusy) "En curso" else "Instalar")
+                if (!installed) {
+                    Button(
+                        onClick = onInstall,
+                        enabled = engineConnected && !isBusy,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (isBusy) "Instalando…" else "Instalar Linux")
                     }
+                    Button(
+                        onClick = onPrepare,
+                        enabled = engineConnected && !isBusy,
+                    ) { Text("Preparar espacio") }
                 }
                 if (installed) {
-                    Button(onClick = onOpenTerminal) { Text("Abrir terminal") }
+                    Button(onClick = onOpenTerminal, modifier = Modifier.weight(1f)) {
+                        Text("Abrir terminal")
+                    }
                 }
             }
             if (storageStatus != null) {
@@ -1104,13 +1109,6 @@ private fun DistroCard(
                 if (hasError) {
                     CopyErrorButton(storageStatus)
                 }
-            }
-            if (distro.id != "alpine" && !installed) {
-                Text(
-                    "El instalador Android para esta distribución todavía está en desarrollo. Preparar el espacio no instala Linux.",
-                    color = DistroPalette.muted,
-                    style = MaterialTheme.typography.labelSmall,
-                )
             }
         }
     }
