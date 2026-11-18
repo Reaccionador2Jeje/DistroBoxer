@@ -2,7 +2,9 @@ const catalog = document.querySelector("#catalog");
 const engineStatus = document.querySelector("#engine-mini");
 const search = document.querySelector("#distro-search");
 const refreshButton = document.querySelector("#refresh-catalog");
+const clearSearchButton = document.querySelector("#clear-search");
 let distributions = [];
+let catalogError = null;
 
 const pages = {
   home: ["Tu espacio Linux", "page-home"],
@@ -15,9 +17,15 @@ const pages = {
 function navigate(page) {
   if (!pages[page]) return;
   document.querySelectorAll(".page").forEach((element) => element.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((element) => element.classList.toggle("active", element.dataset.page === page));
+  document.querySelectorAll(".nav-item").forEach((element) => {
+    const active = element.dataset.page === page;
+    element.classList.toggle("active", active);
+    if (active) element.setAttribute("aria-current", "page");
+    else element.removeAttribute("aria-current");
+  });
   document.getElementById(pages[page][1]).classList.add("active");
   document.querySelector("#page-title").textContent = pages[page][0];
+  document.title = `${pages[page][0]} · DistroBoxer`;
 }
 
 document.querySelectorAll("[data-page]").forEach((button) => {
@@ -55,12 +63,14 @@ function renderDistro(distro) {
 }
 
 function renderCatalog() {
+  if (catalogError) return;
   const query = (search?.value || "").trim().toLowerCase();
   const filtered = distributions.filter((distro) =>
     [distro.name, distro.id, distro.package_manager, distro.description, distro.bootstrap, distro.archive_format]
       .some((value) => String(value || "").toLowerCase().includes(query))
   );
   catalog.replaceChildren();
+  if (clearSearchButton) clearSearchButton.hidden = query.length === 0;
   if (filtered.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
@@ -73,6 +83,12 @@ function renderCatalog() {
 }
 
 search?.addEventListener("input", renderCatalog);
+clearSearchButton?.addEventListener("click", () => {
+  if (!search) return;
+  search.value = "";
+  renderCatalog();
+  search.focus();
+});
 
 async function loadCatalog() {
   if (refreshButton) {
@@ -82,6 +98,7 @@ async function loadCatalog() {
   engineStatus.textContent = "Conectando motor…";
   try {
     distributions = await window.__TAURI__.core.invoke("list_distributions");
+    catalogError = null;
     renderCatalog();
     document.querySelector("#stat-distros").textContent = String(distributions.length);
     document.querySelector("#stat-engine").textContent = "ONLINE";
@@ -94,6 +111,8 @@ async function loadCatalog() {
     document.querySelector("#settings-engine").textContent = "No disponible";
     document.querySelector("#distro-count").textContent = "Catálogo no disponible";
     const message = error instanceof Error ? error.message : String(error);
+    catalogError = message;
+    if (clearSearchButton) clearSearchButton.hidden = !(search?.value.trim());
     const panel = document.createElement("div");
     panel.className = "error-state";
     const title = document.createElement("strong");

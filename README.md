@@ -2,7 +2,7 @@
 
 **DistroBoxer** is an open-source Linux environment manager and lightweight development workspace for Android, Windows, and Linux desktop.
 
-The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. The Android runtime is migrating to QEMU System as its primary full-VM engine; PRoot remains temporarily available as a legacy path until QEMU is packaged and validated on physical devices.
+The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. Android uses PRoot as its primary userspace runtime. QEMU System remains a separate experimental track and is not required to install or launch the supported distributions.
 
 ## Project status
 
@@ -32,7 +32,7 @@ Implemented:
 - Initial F-Droid listing text and submission checklist.
 
 Still in development:
-- Physical-device validation of PRoot shell startup and interactive I/O.
+- Physical-device validation of every distro's PRoot smoke test and interactive I/O on ARM64 and x86_64.
 - Persistent foreground service for Linux sessions.
 - Physical-device validation of OCI installation for each supported architecture; Arch Linux is currently x86_64-only.
 - Full X11 compatibility, GPU acceleration, and tested XFCE/LXQt/MATE sessions. The embedded Java X11 server is a lightweight first backend, not a full X.Org replacement.
@@ -40,7 +40,7 @@ Still in development:
 - Signed production Android APK/AAB and platform installer bundles.
 - Official F-Droid submission and acceptance.
 
-The Android app now has an OCI installation preview for all non-Alpine profiles. Arch Linux is x86_64-only. OCI images are base container root filesystems, not bootable VM disks, and runtime compatibility still requires device testing.
+The Android app installs Debian, Ubuntu, Alpine, Arch Linux, Fedora, openSUSE Tumbleweed, Void Linux, and Kali Linux into isolated root filesystems. Each successful installation must pass a real PRoot smoke test for its shell, writable runtime directories, identity file, and package manager before WorkManager reports success. Arch Linux is x86_64-only. OCI images are base container root filesystems, not bootable VM disks; physical-device validation is still required.
 
 ## Repository layout
 
@@ -77,7 +77,7 @@ cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release
 gradle :android:app:assembleDebug
 ```
 
-The debug APK is at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI builds PRoot for both ABIs, checks out and patches the pinned X11 submodule, then packages the APK.
+The debug APK is at `android/app/build/outputs/apk/debug/app-debug.apk`. Android CI builds PRoot for both ABIs, checks out and patches the pinned X11 submodule, then packages the APK. QEMU is intentionally not a dependency of this Android build.
 
 ## Build desktop
 
@@ -111,7 +111,7 @@ Android can install Debian, Ubuntu, Arch Linux, Fedora, openSUSE Tumbleweed, Voi
 
 ## Graphical desktop roadmap
 
-See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The existing Android X11 screen is experimental. The QEMU migration and VNC client integration are tracked in [docs/QEMU_MIGRATION.md](docs/QEMU_MIGRATION.md).
+See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The existing Android X11 screen is experimental. The optional QEMU research track is documented in [docs/QEMU_MIGRATION.md](docs/QEMU_MIGRATION.md); it does not block the PRoot-based Android runtime.
 
 ## Background work and permissions
 

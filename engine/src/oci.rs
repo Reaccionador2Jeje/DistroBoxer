@@ -4,9 +4,13 @@
 //! under a generated filename. This module verifies every layer digest,
 //! applies layers in order, and honours OCI whiteouts without escaping rootfs.
 
-use crate::{sha256_file, installer::extract_tar_with_progress};
+use crate::{
+    installer::{apply_deferred_directory_modes, extract_tar_with_progress_deferred_directories},
+    sha256_file,
+};
 use flate2::read::GzDecoder;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -47,17 +51,26 @@ pub fn extract_oci_layers_with_progress(
 
     fs::create_dir_all(destination.as_ref())?;
     let root = fs::canonicalize(destination.as_ref())?;
-    let downloads = fs::canonicalize(manifest_path.parent().ok_or_else(|| invalid("manifest has no parent"))?)?;
+    let downloads = fs::canonicalize(
+        manifest_path
+            .parent()
+            .ok_or_else(|| invalid("manifest has no parent"))?,
+    )?;
 
     let mut total_unpacked_bytes = 0_u64;
     let mut total_entries = 0_usize;
+    // Do not apply restrictive directory modes between OCI layers: later
+    // layers may still need to create or replace entries inside those paths.
+    let mut directory_modes = HashMap::new();
     for (index, layer) in manifest.layers.iter().enumerate() {
         if !layer.file.starts_with("layer-")
             || !layer.file.ends_with(".blob")
             || layer.file.contains('/')
             || layer.file.contains('\\')
         {
-            return Err(invalid("OCI layer filename is not a generated safe filename"));
+            return Err(invalid(
+                "OCI layer filename is not a generated safe filename",
+            ));
         }
         if !layer.digest.starts_with("sha256:") || layer.digest.len() != 71 {
             return Err(invalid("OCI layer uses an unsupported digest"));
@@ -76,15 +89,26 @@ pub fn extract_oci_layers_with_progress(
             return Err(invalid("OCI layer SHA-256 verification failed"));
         }
 
-        progress(format!("Aplicando capa OCI {}/{}…", index + 1, manifest.layers.len()));
+        progress(format!(
+            "Aplicando capa OCI {}/{}…",
+            index + 1,
+            manifest.layers.len()
+        ));
         let remaining_bytes = MAX_OCI_UNPACKED_BYTES.saturating_sub(total_unpacked_bytes);
         let remaining_entries = MAX_OCI_ENTRIES.saturating_sub(total_entries);
         let (layer_bytes, layer_entries) = apply_layer(
-            &blob, &layer.media_type, &root, remaining_bytes, remaining_entries, &mut progress,
+            &blob,
+            &layer.media_type,
+            &root,
+            remaining_bytes,
+            remaining_entries,
+            &mut progress,
+            &mut directory_modes,
         )?;
         total_unpacked_bytes += layer_bytes;
         total_entries += layer_entries;
     }
+    apply_deferred_directory_modes(&root, directory_modes)?;
     progress(format!("Se aplicaron {} capas OCI.", manifest.layers.len()));
     Ok(())
 }
@@ -96,16 +120,19 @@ fn apply_layer(
     max_unpacked_bytes: u64,
     max_entries: usize,
     progress: &mut dyn FnMut(String),
+    directory_modes: &mut HashMap<PathBuf, u32>,
 ) -> io::Result<(u64, usize)> {
     let compressed = match media_type {
         "application/vnd.oci.image.layer.v1.tar+gzip"
         | "application/vnd.docker.image.rootfs.diff.tar.gzip" => true,
         "application/vnd.oci.image.layer.v1.tar"
         | "application/vnd.docker.image.rootfs.diff.tar" => false,
-        _ => return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            format!("unsupported OCI layer media type: {media_type}"),
-        )),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("unsupported OCI layer media type: {media_type}"),
+            ))
+        }
     };
 
     let (whiteouts, uncompressed_bytes, entry_count) =
@@ -116,9 +143,14 @@ fn apply_layer(
 
     let file = File::open(blob)?;
     if compressed {
-        extract_tar_with_progress(GzDecoder::new(file), root, progress)?;
+        extract_tar_with_progress_deferred_directories(
+            GzDecoder::new(file),
+            root,
+            progress,
+            directory_modes,
+        )?;
     } else {
-        extract_tar_with_progress(file, root, progress)?;
+        extract_tar_with_progress_deferred_directories(file, root, progress, directory_modes)?;
     }
 
     // OCI marker files are metadata, not part of the resulting rootfs.
@@ -150,12 +182,17 @@ fn collect_whiteouts(
         if entry_count > MAX_LAYER_ENTRIES || entry_count > max_entries {
             return Err(invalid("OCI layer contains too many entries"));
         }
-        uncompressed_bytes = uncompressed_bytes.checked_add(entry.header().size()?)
+        uncompressed_bytes = uncompressed_bytes
+            .checked_add(entry.header().size()?)
             .filter(|bytes| *bytes <= max_unpacked_bytes && *bytes <= MAX_OCI_UNPACKED_BYTES)
             .ok_or_else(|| invalid("OCI layer exceeds the uncompressed size limit"))?;
         let path = entry.path()?.into_owned();
         validate_relative(&path)?;
-        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with(".wh.")) {
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(".wh."))
+        {
             markers.push(path);
         }
     }
@@ -163,7 +200,10 @@ fn collect_whiteouts(
 }
 
 fn apply_whiteout(root: &Path, marker: &Path) -> io::Result<()> {
-    let name = marker.file_name().and_then(|value| value.to_str()).ok_or_else(|| invalid("invalid whiteout name"))?;
+    let name = marker
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| invalid("invalid whiteout name"))?;
     let parent = marker.parent().unwrap_or_else(|| Path::new(""));
     if name == ".wh..wh..opq" {
         let Some(directory) = resolve_existing_directory(root, parent)? else {
@@ -176,7 +216,9 @@ fn apply_whiteout(root: &Path, marker: &Path) -> io::Result<()> {
         return Ok(());
     }
 
-    let target_name = name.strip_prefix(".wh.").ok_or_else(|| invalid("invalid whiteout marker"))?;
+    let target_name = name
+        .strip_prefix(".wh.")
+        .ok_or_else(|| invalid("invalid whiteout marker"))?;
     if target_name.is_empty() {
         return Err(invalid("empty OCI whiteout target"));
     }
@@ -192,7 +234,9 @@ fn remove_inside_root(root: &Path, relative: &Path) -> io::Result<()> {
     let Some(parent_dir) = resolve_existing_directory(root, parent)? else {
         return Ok(());
     };
-    let name = relative.file_name().ok_or_else(|| invalid("invalid OCI removal target"))?;
+    let name = relative
+        .file_name()
+        .ok_or_else(|| invalid("invalid OCI removal target"))?;
     remove_entry_without_following_symlinks(&parent_dir.join(name))
 }
 
@@ -203,7 +247,9 @@ fn resolve_existing_directory(root: &Path, relative: &Path) -> io::Result<Option
     validate_relative(relative)?;
     let mut current = root.to_path_buf();
     for component in relative.components() {
-        let Component::Normal(name) = component else { continue };
+        let Component::Normal(name) = component else {
+            continue;
+        };
         current.push(name);
         match fs::symlink_metadata(&current) {
             Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {}
@@ -253,7 +299,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_dir() -> PathBuf {
-        let n = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let n = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         std::env::temp_dir().join(format!("distroboxer-oci-{n}"))
     }
 
@@ -301,7 +350,10 @@ mod tests {
 
         extract_oci_layers_with_progress(&manifest_path, &rootfs, |_| {}).unwrap();
         assert!(!rootfs.join("remove-me").exists());
-        assert_eq!(fs::read_to_string(rootfs.join("etc/os-release")).unwrap(), "ID=debian\n");
+        assert_eq!(
+            fs::read_to_string(rootfs.join("etc/os-release")).unwrap(),
+            "ID=debian\n"
+        );
         fs::remove_dir_all(base).unwrap();
     }
 

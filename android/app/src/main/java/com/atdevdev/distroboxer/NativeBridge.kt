@@ -16,6 +16,8 @@ internal object NativeBridge {
 
     external fun nativeIsInstalled(distroId: String, baseDirectory: String): Boolean
 
+    external fun nativeSetInstallFailed(distroId: String, baseDirectory: String, reason: String): Boolean
+
     external fun nativeInstallOci(
         distroId: String,
         baseDirectory: String,

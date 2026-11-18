@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#09111f">
+  <meta name="theme-color" content="#0B1317">
   <meta name="description" content="DistroBoxer — tu centro de entornos Linux.">
   <link rel="icon" href="../icons/distroboxer.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
-  <title>DistroBoxer — Atdev Dev</title>
+  <title>Inicio · DistroBoxer</title>
 </head>
 <body>
   <div class="app-shell">
@@ -18,7 +18,7 @@
       </div>
       <p class="nav-caption">WORKSPACE</p>
       <nav class="navigation" aria-label="Navegación principal">
-        <button class="nav-item active" data-page="home"><span>⌂</span> Inicio</button>
+        <button class="nav-item active" data-page="home" aria-current="page"><span>⌂</span> Inicio</button>
         <button class="nav-item" data-page="distros"><span>▦</span> Distribuciones</button>
         <button class="nav-item" data-page="terminal"><span>›_</span> Terminal</button>
         <button class="nav-item" data-page="desktop"><span>▣</span> Escritorio</button>
@@ -39,7 +39,7 @@
           <div class="hero-copy">
             <span class="eyebrow">UN MOTOR · MUCHAS DISTRIBUCIONES</span>
             <h2>Linux, a tu manera.<br><em>Sin límites artificiales.</em></h2>
-            <p>Prepara, organiza y administra tus entornos Linux desde una interfaz unificada creada por Atdev Dev.</p>
+            <p>Instala y organiza entornos Linux desde una sola interfaz, con estados claros y herramientas a mano.</p>
             <button class="primary-button" data-go="distros">Explorar distribuciones <b>→</b></button>
           </div>
           <div class="hero-orbit" aria-hidden="true"><div class="orbit-ring"></div><div class="penguin-mark">DB</div><span class="orbit-label">YOUR LINUX HUB</span></div>
@@ -52,22 +52,22 @@
         <div class="section-title"><div><span class="eyebrow">QUICK ACCESS</span><h2>Centro de trabajo</h2></div></div>
         <div class="quick-grid">
           <button class="quick-card" data-go="distros"><span class="quick-icon">▦</span><strong>Distribuciones</strong><small>Explora los perfiles Linux disponibles.</small><b>Ver catálogo →</b></button>
-          <button class="quick-card" data-go="terminal"><span class="quick-icon terminal-icon">›_</span><strong>Terminal</strong><small>El espacio para tus futuras sesiones de shell.</small><b>Abrir terminal →</b></button>
+          <button class="quick-card" data-go="terminal"><span class="quick-icon terminal-icon">›_</span><strong>Terminal</strong><small>Abre una sesión Linux cuando haya una distribución disponible.</small><b>Abrir terminal →</b></button>
           <button class="quick-card" data-go="desktop"><span class="quick-icon">▣</span><strong>Escritorio gráfico</strong><small>XFCE, LXQt y otros entornos sobre X11.</small><b>Ver escritorios →</b></button>
         </div>
       </section>
       <section id="page-distros" class="page">
         <div class="page-intro"><div><span class="eyebrow">LINUX CATALOG</span><h2>Tus distribuciones</h2><p>Perfiles detectados por el motor compartido de DistroBoxer.</p></div><div class="catalog-toolbar"><span class="count-pill" id="distro-count">Cargando…</span><button class="catalog-refresh" id="refresh-catalog" type="button">↻ Actualizar</button></div></div>
-        <label class="search-box"><span>⌕</span><input id="distro-search" type="search" placeholder="Buscar Debian, Alpine, APT…" autocomplete="off"></label>
+        <div class="search-box" role="search"><label class="sr-only" for="distro-search">Buscar distribuciones</label><span aria-hidden="true">⌕</span><input id="distro-search" type="search" aria-label="Buscar distribuciones" placeholder="Buscar Debian, Alpine, APT…" autocomplete="off"><button id="clear-search" type="button" aria-label="Limpiar búsqueda" hidden>×</button></div>
         <div id="catalog" class="catalog" aria-live="polite"><div class="empty-state">Conectando con el motor Rust…</div></div>
       </section>
       <section id="page-terminal" class="page">
         <div class="page-intro"><div><span class="eyebrow">SHELL WORKSPACE</span><h2>Terminal</h2><p>Tu centro de comandos y sesiones Linux.</p></div><span class="count-pill pending">RUNTIME PENDIENTE</span></div>
         <div class="terminal-window">
           <div class="terminal-bar"><div class="window-dots"><i></i><i></i><i></i></div><span>DISTROBOXER — TERMINAL</span><span class="terminal-lock">● SIN SESIÓN</span></div>
-          <div class="terminal-content"><p class="term-green">Atdev Dev · DistroBoxer Shell</p><p>Bienvenido al futuro espacio de terminal.</p><p class="term-muted">Todavía no hay una distribución iniciada.</p><br><p class="term-green">$ distroboxer runtime status</p><p class="term-warning">PRoot: pendiente · Shell interactiva: pendiente · X11: pendiente</p><div class="terminal-cursor"><span>›</span> Esperando integración del runtime<span class="cursor"></span></div></div>
+          <div class="terminal-content"><p class="term-green">DISTROBOXER / TERMINAL</p><p>El panel de terminal estará disponible cuando una distribución pueda iniciar una sesión real.</p><p class="term-muted">No hay una sesión activa. Esta vista no ejecuta comandos ni presenta resultados de ejemplo.</p><div class="terminal-cursor"><span>›</span> Sin sesión activa</div></div>
         </div>
-        <div class="notice-card"><strong>¿Qué falta para ejecutar comandos?</strong><p>Integrar PRoot, preparar el entorno de shell y gestionar sesiones persistentes. Esta pantalla es la interfaz de destino; todavía no ejecuta comandos ficticios.</p></div>
+        <div class="notice-card"><strong>¿Qué falta para ejecutar comandos?</strong><p>Integrar PRoot, preparar el entorno de shell y gestionar sesiones persistentes. Esta vista es una referencia visual: no ejecuta comandos ni muestra salida simulada.</p></div>
       </section>
       <section id="page-desktop" class="page">
         <div class="page-intro"><div><span class="eyebrow">GRAPHICAL LINUX</span><h2>Escritorios Linux</h2><p>Entornos gráficos que planeamos ejecutar sobre X11.</p></div><span class="count-pill pending">INTEGRACIÓN PENDIENTE</span></div>

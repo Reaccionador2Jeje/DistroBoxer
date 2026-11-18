@@ -29,7 +29,7 @@ Arch Linux publishes an official OCI image for x86_64, not ARM64. DistroBoxer de
 5. The native Rust engine verifies each layer digest again.
 6. Layers are applied in order to a staging rootfs. OCI whiteouts and opaque-directory markers are processed so deleted files do not reappear from lower layers.
 7. The engine validates `etc/os-release` against the selected distribution (including openSUSE's release IDs) and atomically promotes the rootfs.
-8. Installation metadata is marked Installed only after validation and promotion succeed.
+8. The native engine validates the distribution identity and atomically promotes the rootfs.\n9. Android starts the installed rootfs with the bundled PRoot executable and runs a bounded smoke test: shell execution, readable os-release, writable /root and /tmp, and the distribution's package-manager executable.\n10. WorkManager reports success only after the PRoot smoke test passes. If it fails, the installation metadata is changed to Failed and the error is surfaced to the user.
 
 No downloaded setup script is executed. The OCI downloader supports Docker Hub and GHCR public images, gzip-compressed and uncompressed tar layers, and a bounded image size/layer count. Unsupported media types fail closed.
 
@@ -49,4 +49,4 @@ The official Kali rolling image is a minimal container base and does not include
 - OCI whiteouts remove only paths contained within the staging rootfs.
 - Existing rootfs data is preserved until the new staging tree validates.
 
-The current code is an implementation preview. It still needs automated registry integration tests, physical-device installation tests for each supported ABI, upstream signature/cosign verification, and recovery tests for interrupted pulls. Download cancellation removes partial blobs; native layer extraction is not yet interruptible. Floating tags also mean two installations at different times may resolve to different upstream snapshots.
+The current code is an implementation preview. It still needs automated registry integration tests, physical-device PRoot installation tests for every supported distro and ABI, upstream signature/cosign verification, and recovery tests for interrupted pulls. Download cancellation removes partial blobs; native layer extraction is not yet interruptible. Floating tags also mean two installations at different times may resolve to different upstream snapshots.
