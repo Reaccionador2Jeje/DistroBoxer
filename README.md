@@ -6,13 +6,14 @@ The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android
 
 ## Project status
 
-Early development — next planned milestone: 0.4.0.
+Early development — next planned milestone: 0.4.1.
 
 Implemented:
 - Shared Rust engine and eight distribution catalog profiles: Debian, Ubuntu, Alpine, Arch Linux, Fedora, openSUSE, Void Linux, and Kali Linux.
 - Architecture compatibility metadata for `aarch64` and `x86_64`.
 - Validated distribution IDs and isolated app-private storage.
 - JSON metadata and validated installation lifecycle transitions.\n- Initial read-only DistroBoxer Doctor API for storage, metadata, rootfs identity, shell-path, and lifecycle consistency diagnostics.
+- Passive host and runtime detection for OS, architecture, QEMU System, and PRoot availability.
 - Alpine rootfs download and installation pipeline with HTTPS allowlisting, SHA-256 verification, cancellation, and foreground notifications.
 - Rust gzip tar extraction with path traversal and unsafe link checks, staging validation, and rootfs promotion.
 - Initial QEMU System runtime API for private VM storage, QCOW2 disk creation, kernel/initrd import, TCG serial boot, and loopback-only optional VNC. QEMU executable payloads and boot media are not bundled yet.
@@ -82,6 +83,10 @@ cargo run --manifest-path desktop/Cargo.toml
 ```
 
 See [desktop/README.md](desktop/README.md) for platform-specific requirements.\n\n## DistroBoxer Doctor\n\nThe shared Rust engine exposes a read-only diagnostic API. See [docs/DOCTOR.md](docs/DOCTOR.md) for supported checks, Rust examples, diagnostic codes, and safety limitations.
+
+## Runtime Detection
+
+The shared Rust engine exposes a read-only host and runtime discovery API. See [docs/RUNTIME_DETECTION.md](docs/RUNTIME_DETECTION.md) for details.
 
 ## Graphical desktop roadmap
 
