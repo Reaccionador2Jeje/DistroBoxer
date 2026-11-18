@@ -235,15 +235,13 @@ class ProotRuntime(context: Context) {
             "Nombre o extensión de proyecto no válida"
         }
         val rootfs = resolveRootfs(distroId)
+        ensureGuestDirectory(rootfs, "root", 0x1C0)
         val rootDirectory = File(rootfs, "root")
-        if (!rootDirectory.exists()) check(rootDirectory.mkdirs()) { "No se pudo crear /root" }
         require(rootDirectory.canonicalFile.parentFile == rootfs.canonicalFile) {
             "Directorio /root no válido"
         }
+        ensureGuestDirectory(rootfs, "root/projects", 0x1C0)
         val projectsDirectory = File(rootDirectory, "projects")
-        if (!projectsDirectory.exists()) check(projectsDirectory.mkdirs()) {
-            "No se pudo crear /root/projects"
-        }
         val safeProjectsDirectory = projectsDirectory.canonicalFile
         require(safeProjectsDirectory.parentFile == rootDirectory.canonicalFile && safeProjectsDirectory.isDirectory) {
             "Directorio de proyectos no válido"
