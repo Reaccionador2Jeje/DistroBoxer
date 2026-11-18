@@ -4,9 +4,13 @@
 //! under a generated filename. This module verifies every layer digest,
 //! applies layers in order, and honours OCI whiteouts without escaping rootfs.
 
-use crate::{installer::extract_tar_with_progress, sha256_file};
+use crate::{
+    installer::{apply_deferred_directory_modes, extract_tar_with_progress_deferred_directories},
+    sha256_file,
+};
 use flate2::read::GzDecoder;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -55,6 +59,9 @@ pub fn extract_oci_layers_with_progress(
 
     let mut total_unpacked_bytes = 0_u64;
     let mut total_entries = 0_usize;
+    // Do not apply restrictive directory modes between OCI layers: later
+    // layers may still need to create or replace entries inside those paths.
+    let mut directory_modes = HashMap::new();
     for (index, layer) in manifest.layers.iter().enumerate() {
         if !layer.file.starts_with("layer-")
             || !layer.file.ends_with(".blob")
@@ -96,10 +103,12 @@ pub fn extract_oci_layers_with_progress(
             remaining_bytes,
             remaining_entries,
             &mut progress,
+            &mut directory_modes,
         )?;
         total_unpacked_bytes += layer_bytes;
         total_entries += layer_entries;
     }
+    apply_deferred_directory_modes(&root, directory_modes)?;
     progress(format!("Se aplicaron {} capas OCI.", manifest.layers.len()));
     Ok(())
 }
@@ -111,6 +120,7 @@ fn apply_layer(
     max_unpacked_bytes: u64,
     max_entries: usize,
     progress: &mut dyn FnMut(String),
+    directory_modes: &mut HashMap<PathBuf, u32>,
 ) -> io::Result<(u64, usize)> {
     let compressed = match media_type {
         "application/vnd.oci.image.layer.v1.tar+gzip"
@@ -133,9 +143,14 @@ fn apply_layer(
 
     let file = File::open(blob)?;
     if compressed {
-        extract_tar_with_progress(GzDecoder::new(file), root, progress)?;
+        extract_tar_with_progress_deferred_directories(
+            GzDecoder::new(file),
+            root,
+            progress,
+            directory_modes,
+        )?;
     } else {
-        extract_tar_with_progress(file, root, progress)?;
+        extract_tar_with_progress_deferred_directories(file, root, progress, directory_modes)?;
     }
 
     // OCI marker files are metadata, not part of the resulting rootfs.
