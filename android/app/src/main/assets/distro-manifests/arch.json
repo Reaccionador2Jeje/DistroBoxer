@@ -1,0 +1,10 @@
+{
+  "id": "arch",
+  "version": "rolling",
+  "image": "ghcr.io/archlinux/archlinux",
+  "tag": "latest",
+  "architectures": [
+    "amd64"
+  ],
+  "source": "Arch Linux official OCI image"
+}
