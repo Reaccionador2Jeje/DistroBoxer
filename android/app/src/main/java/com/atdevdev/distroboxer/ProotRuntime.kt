@@ -54,15 +54,7 @@ class ProotRuntime(context: Context) {
         // alterados por el proceso de extracción o por el sistema de archivos.
         // Reparamos únicamente los ejecutables de arranque, tras resolver sus
         // symlinks y comprobar que siguen dentro del rootfs privado.
-        val shell = ensureGuestExecutable(rootfs, "bin/sh")
-        // EACCES en execve(/bin/sh) también puede deberse a un cargador ELF
-        // sin permiso de ejecución. Detectamos PT_INTERP en vez de adivinar rutas.
-        readElfInterpreter(shell)?.let { interpreter ->
-            require(interpreter.startsWith("/") && !interpreter.split("/").contains("..")) {
-                "La ruta del cargador ELF de /bin/sh no es válida."
-            }
-            ensureGuestExecutable(rootfs, interpreter.removePrefix("/"))
-        }
+        repairShellAndLoader(rootfs)
         // PRoot crea archivos auxiliares en este directorio del host Android.
         // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
         val prootTempDirectory = prepareProotTempDirectory()
@@ -157,6 +149,17 @@ class ProotRuntime(context: Context) {
             "El ejecutable /$relativePath o alguno de sus directorios sigue sin permisos de lectura/ejecución."
         }
         return target
+    }
+
+    /** Repairs the shell and its exact ELF interpreter before validation or launch. */
+    private fun repairShellAndLoader(rootfs: File) {
+        val shell = ensureGuestExecutable(rootfs, "bin/sh")
+        readElfInterpreter(shell)?.let { interpreter ->
+            require(interpreter.startsWith("/") && !interpreter.split("/").contains("..")) {
+                "La ruta del cargador ELF de /bin/sh no es válida."
+            }
+            ensureGuestExecutable(rootfs, interpreter.removePrefix("/"))
+        }
     }
 
     /** Reads the PT_INTERP segment to locate the exact ELF dynamic loader. */
@@ -264,7 +267,7 @@ class ProotRuntime(context: Context) {
         require(isRuntimeAvailable()) { "El runtime PRoot no está disponible." }
 
         val rootfs = resolveRootfs(distroId)
-        ensureGuestExecutable(rootfs, "bin/sh")
+        repairShellAndLoader(rootfs)
         ensureGuestDirectory(rootfs, "root", 0x1C0)
         ensureGuestDirectory(rootfs, "tmp", 0x3FF)
         val tempDirectory = prepareProotTempDirectory()
