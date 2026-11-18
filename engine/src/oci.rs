@@ -49,6 +49,8 @@ pub fn extract_oci_layers_with_progress(
     let root = fs::canonicalize(destination.as_ref())?;
     let downloads = fs::canonicalize(manifest_path.parent().ok_or_else(|| invalid("manifest has no parent"))?)?;
 
+    let mut total_unpacked_bytes = 0_u64;
+    let mut total_entries = 0_usize;
     for (index, layer) in manifest.layers.iter().enumerate() {
         if !layer.file.starts_with("layer-")
             || !layer.file.ends_with(".blob")
@@ -75,7 +77,13 @@ pub fn extract_oci_layers_with_progress(
         }
 
         progress(format!("Aplicando capa OCI {}/{}…", index + 1, manifest.layers.len()));
-        apply_layer(&blob, &layer.media_type, &root, &mut progress)?;
+        let (layer_bytes, layer_entries) = apply_layer(&blob, &layer.media_type, &root, &mut progress)?;
+        total_unpacked_bytes = total_unpacked_bytes.checked_add(layer_bytes)
+            .filter(|bytes| *bytes <= MAX_OCI_UNPACKED_BYTES)
+            .ok_or_else(|| invalid("OCI image exceeds the total uncompressed size limit"))?;
+        total_entries = total_entries.checked_add(layer_entries)
+            .filter(|count| *count <= MAX_OCI_ENTRIES)
+            .ok_or_else(|| invalid("OCI image contains too many total entries"))?;
     }
     progress(format!("Se aplicaron {} capas OCI.", manifest.layers.len()));
     Ok(())
@@ -86,7 +94,7 @@ fn apply_layer(
     media_type: &str,
     root: &Path,
     progress: &mut dyn FnMut(String),
-) -> io::Result<()> {
+) -> io::Result<(u64, usize)> {
     let compressed = match media_type {
         "application/vnd.oci.image.layer.v1.tar+gzip"
         | "application/vnd.docker.image.rootfs.diff.tar.gzip" => true,
@@ -98,7 +106,7 @@ fn apply_layer(
         )),
     };
 
-    let whiteouts = collect_whiteouts(blob, compressed)?;
+    let (whiteouts, uncompressed_bytes, entry_count) = collect_whiteouts(blob, compressed)?;
     for marker in &whiteouts {
         apply_whiteout(root, marker)?;
     }
@@ -114,10 +122,10 @@ fn apply_layer(
     for marker in whiteouts {
         remove_inside_root(root, &marker)?;
     }
-    Ok(())
+    Ok((uncompressed_bytes, entry_count))
 }
 
-fn collect_whiteouts(blob: &Path, compressed: bool) -> io::Result<Vec<PathBuf>> {
+fn collect_whiteouts(blob: &Path, compressed: bool) -> io::Result<(Vec<PathBuf>, u64, usize)> {
     let file = File::open(blob)?;
     let reader: Box<dyn Read> = if compressed {
         Box::new(GzDecoder::new(file))
@@ -126,15 +134,24 @@ fn collect_whiteouts(blob: &Path, compressed: bool) -> io::Result<Vec<PathBuf>> 
     };
     let mut archive = tar::Archive::new(reader);
     let mut markers = Vec::new();
+    let mut uncompressed_bytes = 0_u64;
+    let mut entry_count = 0_usize;
     for item in archive.entries()? {
         let entry = item?;
+        entry_count += 1;
+        if entry_count > MAX_LAYER_ENTRIES {
+            return Err(invalid("OCI layer contains too many entries"));
+        }
+        uncompressed_bytes = uncompressed_bytes.checked_add(entry.header().size()?)
+            .filter(|bytes| *bytes <= MAX_OCI_UNPACKED_BYTES)
+            .ok_or_else(|| invalid("OCI layer exceeds the uncompressed size limit"))?;
         let path = entry.path()?.into_owned();
         validate_relative(&path)?;
         if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with(".wh.")) {
             markers.push(path);
         }
     }
-    Ok(markers)
+    Ok((markers, uncompressed_bytes, entry_count))
 }
 
 fn apply_whiteout(root: &Path, marker: &Path) -> io::Result<()> {
@@ -213,6 +230,10 @@ fn validate_relative(path: &Path) -> io::Result<()> {
     }
     Ok(())
 }
+
+const MAX_OCI_UNPACKED_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+const MAX_LAYER_ENTRIES: usize = 500_000;
+const MAX_OCI_ENTRIES: usize = 1_000_000;
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
