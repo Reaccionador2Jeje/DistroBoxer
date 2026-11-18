@@ -2,11 +2,14 @@
   "id": "kali",
   "name": "Kali Linux",
   "package_manager": "apt",
-  "architectures": ["aarch64", "x86_64"],
-  "bootstrap": "OCI image",
+  "architectures": [
+    "aarch64",
+    "x86_64"
+  ],
+  "bootstrap": "Official Kali Linux rolling OCI image",
   "homepage": "https://www.kali.org/",
   "archive_format": "oci",
-  "status": "planned",
-  "rootfs_source": null,
-  "checksum": null
+  "status": "installer-preview",
+  "image": "kalilinux/kali-rolling",
+  "tag": "latest"
 }
