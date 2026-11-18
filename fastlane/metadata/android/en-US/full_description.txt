@@ -1,14 +1,16 @@
-DistroBoxer is an open-source Linux distribution environment manager.
+DistroBoxer is an open-source Linux userspace environment manager.
 
-The project is built around a shared Rust engine, with a native Android application and a desktop application for Windows and Linux.
+Features in this development preview:
+- Browse eight Linux distribution profiles.
+- Install Alpine from its official minirootfs archive.
+- Install Debian, Ubuntu, Arch Linux, Fedora, openSUSE Tumbleweed, Void Linux, and Kali Linux from official OCI container images.
+- Verify OCI manifest and layer SHA-256 digests before applying image layers.
+- Keep each root filesystem isolated in app-private storage.
+- Track background downloads and installation progress.
+- Run supported Linux userspace environments through an unprivileged runtime.
 
-Planned capabilities:
-- Browse supported Linux distributions.
-- Download and verify trusted root filesystem archives.
-- Keep each distribution isolated in app-private storage.
-- Manage long-running downloads with progress notifications.
-- Launch Linux userspace environments through a compatible unprivileged runtime.
+DistroBoxer does not require Android root access. PRoot is a userspace compatibility layer and does not provide a separate Linux kernel. OCI images are container base root filesystems, not bootable virtual machines.
 
-DistroBoxer does not require Android root access. A userspace runtime such as PRoot does not provide a separate Linux kernel.
+Architecture support depends on each upstream image. The official Arch Linux OCI image currently supports x86_64 only; the other OCI profiles target ARM64 and x86_64. Kali's official rolling container image is a minimal base and does not include its default metapackage.
 
-This is an early development build. An Alpine Linux 3.24.4 rootfs installation preview is available on ARM64 and x86_64. Other distributions are currently catalog profiles only. Interactive Linux terminal execution is still under development.
+This is an early development build. Automated registry integration tests and physical-device installation validation are still in progress. Interactive Linux runtime compatibility may vary by distribution and device.
