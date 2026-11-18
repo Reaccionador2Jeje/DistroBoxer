@@ -105,6 +105,10 @@ The shared Rust engine exposes a read-only storage usage and capacity report. Se
 
 The shared Rust engine converts Doctor findings into risk-ranked, non-executable repair suggestions. See [docs/REPAIR_PLANNER.md](docs/REPAIR_PLANNER.md) for details.
 
+## Multi-distribution OCI installers
+
+Android can install Debian, Ubuntu, Arch Linux, Fedora, openSUSE Tumbleweed, Void Linux, and Kali Linux from verified OCI layers. See [docs/OCI_INSTALLERS.md](docs/OCI_INSTALLERS.md) for image sources, architecture support, and current limitations.
+
 ## Graphical desktop roadmap
 
 See [docs/GRAPHICAL_DESKTOPS.md](docs/GRAPHICAL_DESKTOPS.md) for the X11 + PRoot architecture and desktop roadmap. The existing Android X11 screen is experimental. The QEMU migration and VNC client integration are tracked in [docs/QEMU_MIGRATION.md](docs/QEMU_MIGRATION.md).
