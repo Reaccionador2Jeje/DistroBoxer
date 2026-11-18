@@ -474,10 +474,11 @@ mod tests {
     fn detects_installed_metadata_without_rootfs() {
         let base = temp_dir();
         let manager = StorageManager::new(&base);
-        manager.prepare_distro("alpine").unwrap();
+        let distro_dir = manager.prepare_distro("alpine").unwrap();
         manager
             .set_status("alpine", InstallStatus::Installed, None)
             .unwrap();
+        fs::remove_dir(distro_dir.join("rootfs")).unwrap();
 
         let report = run_distro_doctor(&manager, "alpine").unwrap();
         assert!(report
