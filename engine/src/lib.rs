@@ -201,6 +201,8 @@ mod tests {
         assert!(is_supported("kali"));
         assert!(supports_architecture("debian", "aarch64"));
         assert!(supports_architecture("alpine", "x86_64"));
+        assert!(supports_architecture("arch", "x86_64"));
+        assert!(!supports_architecture("arch", "aarch64"));
         assert!(!supports_architecture("ubuntu", "armv7l"));
         assert_eq!(linux_arch_from_android_abi("arm64-v8a"), Some("aarch64"));
         assert_eq!(linux_arch_from_android_abi("x86_64"), Some("x86_64"));
