@@ -55,7 +55,7 @@ impl RepairPlan {
 /// The planner consumes only the supplied report. It does not access storage
 /// or inspect paths, so it cannot accidentally mutate or traverse user files.
 pub fn plan_repairs(report: &DoctorReport) -> RepairPlan {
-    let mut actions = Vec::new();
+    let mut actions: Vec<RepairAction> = Vec::new();
     let mut handled = BTreeSet::new();
 
     for diagnostic in &report.diagnostics {
