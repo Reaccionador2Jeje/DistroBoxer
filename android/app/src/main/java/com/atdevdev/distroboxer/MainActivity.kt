@@ -84,7 +84,7 @@ private val fallbackDistros = listOf(
     DistroUi("alpine", "Alpine Linux", "APK", "Ligera y minimalista", "Minirootfs", "tar.gz", "https://alpinelinux.org/"),
     DistroUi("arch", "Arch Linux", "PACMAN", "Rolling release · solo x86_64", "OCI", "oci", "https://archlinux.org/"),
     DistroUi("fedora", "Fedora", "DNF", "Tecnología y software reciente", "OCI", "oci", "https://fedoraproject.org/"),
-    DistroUi("opensuse", "openSUSE", "ZYPPER", "Distribución comunitaria", "OCI", "oci", "https://www.opensuse.org/"),
+    DistroUi("opensuse", "openSUSE Tumbleweed", "ZYPPER", "Distribución rolling comunitaria", "OCI", "oci", "https://www.opensuse.org/"),
     DistroUi("void", "Void Linux", "XBPS", "Independiente y ligera", "OCI", "oci", "https://voidlinux.org/"),
     DistroUi("kali", "Kali Linux", "APT", "Distribución especializada", "OCI", "oci", "https://www.kali.org/"),
 )
