@@ -96,7 +96,7 @@ pub const DISTROS: &[Distro] = &[
     },
     Distro {
         id: "opensuse",
-        name: "openSUSE",
+        name: "openSUSE Tumbleweed",
         package_manager: "zypper",
         architectures: &["aarch64", "x86_64"],
         homepage: "https://www.opensuse.org/",
