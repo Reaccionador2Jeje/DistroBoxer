@@ -68,9 +68,8 @@ pub fn plan_repairs(report: &DoctorReport) -> RepairPlan {
         if let Some(existing) = actions.iter_mut().find(|action: &&mut RepairAction| {
             action.id == id && action.distro_id == diagnostic.distro_id
         }) {
-            let action = *existing;
             if handled.insert((id.to_owned(), diagnostic.code.clone())) {
-                action.source_codes.push(diagnostic.code.clone());
+                existing.source_codes.push(diagnostic.code.clone());
             }
             continue;
         }
