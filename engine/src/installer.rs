@@ -3,6 +3,7 @@
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::io::{self, Read};
+use std::collections::HashMap;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Component, Path};
@@ -48,6 +49,24 @@ pub fn extract_tar_with_progress<R: Read>(
     destination: impl AsRef<Path>,
     progress: &mut dyn FnMut(String),
 ) -> io::Result<()> {
+    let mut directory_modes = HashMap::new();
+    extract_tar_with_progress_deferred_directories(
+        reader,
+        destination.as_ref(),
+        progress,
+        &mut directory_modes,
+    )?;
+    apply_deferred_directory_modes(destination.as_ref(), directory_modes)
+}
+
+/// Extracts one layer while retaining directory modes for a later finalization.
+/// OCI uses this across all layers so restrictive modes cannot block later layers.
+pub(crate) fn extract_tar_with_progress_deferred_directories<R: Read>(
+    reader: R,
+    destination: impl AsRef<Path>,
+    progress: &mut dyn FnMut(String),
+    directory_modes: &mut HashMap<std::path::PathBuf, u32>,
+) -> io::Result<()> {
     fs::create_dir_all(destination.as_ref())?;
     let destination = fs::canonicalize(destination)?;
 
@@ -58,9 +77,7 @@ pub fn extract_tar_with_progress<R: Read>(
     // creation until every regular entry is unpacked, then rewrite them as
     // equivalent relative links so they cannot escape the host app directory.
     let mut deferred_symlinks: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
-    // Directory permissions are applied last so extraction can still create
-    // children even when the archive records restrictive directory modes.
-    let mut deferred_directories: Vec<(std::path::PathBuf, u32)> = Vec::new();
+    // Keep restrictive directory modes deferred until every related layer is extracted.
     archive.set_preserve_permissions(false);
     archive.set_preserve_mtime(false);
     archive.set_unpack_xattrs(false);
@@ -145,7 +162,10 @@ pub fn extract_tar_with_progress<R: Read>(
 
         let extracted_path = destination.join(&entry_path);
         if entry_type.is_dir() {
-            deferred_directories.push((entry_path, safe_mode));
+            directory_modes.insert(entry_path, safe_mode);
+            // The app owns this rootfs. Keep owner access while more layers
+            // are being applied, then restore the archive's final mode.
+            apply_safe_mode(&extracted_path, safe_mode | 0o700)?;
         } else if entry_type.is_file() {
             apply_safe_mode(&extracted_path, safe_mode)?;
         }
@@ -170,13 +190,37 @@ pub fn extract_tar_with_progress<R: Read>(
         })?;
     }
 
-    // Apply directory modes deepest-first, after all entries and links exist.
-    deferred_directories.sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
-    for (directory, mode) in deferred_directories {
-        apply_safe_mode(&destination.join(directory), mode)?;
-    }
-
     progress(format!("Extracción terminada: {entry_count} entradas"));
+    Ok(())
+}
+
+/// Restores archived directory modes after all layers have been applied.
+pub(crate) fn apply_deferred_directory_modes(
+    destination: impl AsRef<Path>,
+    directory_modes: HashMap<std::path::PathBuf, u32>,
+) -> io::Result<()> {
+    let root = fs::canonicalize(destination.as_ref())?;
+    let mut directories: Vec<_> = directory_modes.into_iter().collect();
+    directories.sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
+    for (relative, mode) in directories {
+        let path = root.join(relative);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            continue;
+        }
+        let resolved = fs::canonicalize(&path)?;
+        if !resolved.starts_with(&root) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "directory mode target escapes the root filesystem",
+            ));
+        }
+        apply_safe_mode(&resolved, mode)?;
+    }
     Ok(())
 }
 
