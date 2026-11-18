@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +55,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -243,6 +248,7 @@ private fun DistroBoxerScreen() {
     val storageStates = remember { mutableStateMapOf<String, String>() }
     val activeInstalls = remember { mutableStateMapOf<String, Boolean>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
+    var terminalFullscreen by remember { mutableStateOf(false) }
     var selectedDistroId by remember { mutableStateOf("alpine") }
     var search by remember { mutableStateOf("") }
     var distroFilter by remember { mutableStateOf("all") }
@@ -549,7 +555,7 @@ for numero in range(1, 6):
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
+        bottomBar = if (terminalFullscreen) null else {
             NavigationBar(
                 containerColor = DistroPalette.surface,
                 contentColor = DistroPalette.text,
@@ -558,7 +564,7 @@ for numero in range(1, 6):
                 AppTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
+                        onClick = { terminalFullscreen = false; selectedTab = tab },
                         icon = { Text(tab.symbol, fontWeight = FontWeight.Bold) },
                         label = { Text(tab.label) },
                     )
@@ -570,9 +576,9 @@ for numero in range(1, 6):
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 18.dp),
+                .then(if (terminalFullscreen) Modifier else Modifier.padding(horizontal = 18.dp)),
         ) {
-            Row(
+            if (!terminalFullscreen) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp, bottom = 16.dp),
@@ -680,7 +686,9 @@ for numero in range(1, 6):
                                 installBusy = activeInstalls[distro.id] == true,
                                 onOpenTerminal = {
                                     selectDistroForTerminal(distro.id)
+                                    terminalFullscreen = true
                                     selectedTab = AppTab.TERMINAL
+                                    startLinuxShell()
                                 },
                                 onPrepare = {
                                     val prepared = runCatching {
@@ -781,6 +789,11 @@ for numero in range(1, 6):
                         qemuRuntime.stop()
                         terminalStatus = "Sesión detenida"
                         terminalOutput += "\n[ DistroBoxer: sesión detenida ]\n"
+                    },
+                    fullscreen = terminalFullscreen,
+                    onExitFullscreen = {
+                        terminalFullscreen = false
+                        selectedTab = AppTab.DISTROS
                     },
                 )
                 AppTab.PROGRAMMING -> ProgrammingPage(
@@ -1128,9 +1141,24 @@ private fun TerminalPage(
     onStartSession: () -> Unit,
     onSendCommand: () -> Unit,
     onStopSession: () -> Unit,
+    fullscreen: Boolean,
+    onExitFullscreen: () -> Unit,
 ) {
     val selectedDistro = installedDistros.firstOrNull { it.id == selectedDistroId }
-    Column(
+    if (fullscreen) {
+        FullscreenTerminalPage(
+            distroName = selectedDistro?.name ?: selectedDistroId,
+            terminalOutput = terminalOutput,
+            terminalStatus = terminalStatus,
+            terminalCommand = terminalCommand,
+            onCommandChange = onCommandChange,
+            onSendCommand = onSendCommand,
+            onStartSession = onStartSession,
+            onStopSession = onStopSession,
+            onClearOutput = onClearOutput,
+            onExit = onExitFullscreen,
+        )
+    } else Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -1245,6 +1273,112 @@ private fun TerminalPage(
     }
 }
 
+
+@Composable
+private fun FullscreenTerminalPage(
+    distroName: String,
+    terminalOutput: String,
+    terminalStatus: String,
+    terminalCommand: String,
+    onCommandChange: (String) -> Unit,
+    onSendCommand: () -> Unit,
+    onStartSession: () -> Unit,
+    onStopSession: () -> Unit,
+    onClearOutput: () -> Unit,
+    onExit: () -> Unit,
+) {
+    val connected = terminalStatus.startsWith("Conectado")
+    val keyboard = LocalSoftwareKeyboardController.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DistroPalette.terminal)
+            .imePadding(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DistroPalette.surface)
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            TextButton(onClick = onExit) { Text("← Distros") }
+            Column(Modifier.weight(1f)) {
+                Text(distroName, color = DistroPalette.text, fontWeight = FontWeight.Bold)
+                Text(
+                    if (connected) "SESIÓN ACTIVA" else terminalStatus.uppercase(),
+                    color = if (connected) DistroPalette.accent else DistroPalette.terminalMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            TextButton(onClick = onClearOutput) { Text("Limpiar") }
+            TextButton(onClick = {
+                if (connected) onStopSession() else onStartSession()
+            }) { Text(if (connected) "Detener" else "Conectar") }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 15.dp, vertical = 14.dp),
+        ) {
+            Text(
+                terminalOutput,
+                color = DistroPalette.terminalText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight,
+                ),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DistroPalette.surface)
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = terminalCommand,
+                onValueChange = onCommandChange,
+                modifier = Modifier.weight(1f),
+                enabled = connected,
+                singleLine = true,
+                label = { Text("Escribe un comando") },
+                placeholder = { Text("ls -la") },
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    if (connected && terminalCommand.isNotBlank()) {
+                        onSendCommand()
+                    }
+                }),
+            )
+            Button(
+                onClick = {
+                    onSendCommand()
+                    keyboard?.hide()
+                },
+                enabled = connected && terminalCommand.isNotBlank(),
+                modifier = Modifier.height(54.dp),
+            ) { Text("Enviar") }
+        }
+        if (!connected) {
+            Text(
+                "Conecta la sesión para empezar a escribir comandos.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DistroPalette.surface)
+                    .padding(start = 14.dp, end = 14.dp, bottom = 9.dp),
+                color = DistroPalette.terminalMuted,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    }
+}
 
 @Composable
 private fun ProgrammingPage(
