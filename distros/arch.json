@@ -2,11 +2,13 @@
   "id": "arch",
   "name": "Arch Linux",
   "package_manager": "pacman",
-  "architectures": ["aarch64", "x86_64"],
-  "bootstrap": "official architecture-specific bootstrap tarball",
+  "architectures": [
+    "x86_64"
+  ],
+  "bootstrap": "Official Arch Linux OCI base image",
   "homepage": "https://archlinux.org/",
-  "archive_format": "tar.zst",
-  "status": "planned",
-  "rootfs_source": null,
-  "checksum": null
+  "archive_format": "oci",
+  "status": "installer-preview",
+  "image": "ghcr.io/archlinux/archlinux",
+  "tag": "latest"
 }
