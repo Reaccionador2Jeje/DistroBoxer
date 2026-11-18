@@ -33,13 +33,29 @@ jobs:
           cd termux-packages
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("scripts/properties.sh")
-          s = p.read_text()
-          old = 'TERMUX_APP__PACKAGE_NAME="com.termux"'
-          new = 'TERMUX_APP__PACKAGE_NAME="com.atdevdev.distroboxer"'
-          if s.count(old) != 1:
-              raise SystemExit("Could not safely set the DistroBoxer package namespace")
-          p.write_text(s.replace(old, new))
+
+          # Use the isolated Termux build directory instead of Android-only
+          # /data paths when cross-compiling on a hosted Linux runner.
+          patches = {
+              Path("scripts/properties.sh"): (
+                  'TERMUX_APP__PACKAGE_NAME="com.termux"',
+                  'TERMUX_APP__PACKAGE_NAME="com.atdevdev.distroboxer"',
+              ),
+              Path("scripts/build/termux_step_handle_buildarch.sh"): (
+                  'local TERMUX_ARCH_FILE=/data/TERMUX_ARCH',
+                  'local TERMUX_ARCH_FILE="$TERMUX_TOPDIR/TERMUX_ARCH"\n\tmkdir -p "$TERMUX_TOPDIR"',
+              ),
+              Path("scripts/build/termux_step_setup_variables.sh"): (
+                  'TERMUX_BUILT_PACKAGES_DIRECTORY="/data/data/.built-packages"',
+                  'TERMUX_BUILT_PACKAGES_DIRECTORY="$TERMUX_TOPDIR/.built-packages"\n\tmkdir -p "$TERMUX_BUILT_PACKAGES_DIRECTORY"',
+              ),
+          }
+
+          for path, (old, new) in patches.items():
+              source = path.read_text()
+              if source.count(old) != 1:
+                  raise SystemExit(f"Could not safely patch {path}: expected one match")
+              path.write_text(source.replace(old, new))
           PY
           mkdir -p x11-packages/qemu-system-aarch64
           cp ../packaging/termux-qemu/build.sh x11-packages/qemu-system-aarch64/build.sh
@@ -53,17 +69,20 @@ jobs:
         run: |
           set -euo pipefail
           NDK_DIR="$HOME/lib/android-ndk-r30"
-          if [ ! -x "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang" ]; then
+          NDK_BIN="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          NDK_CLANG="$NDK_BIN/clang"
+          if [ ! -x "$NDK_CLANG" ]; then
             mkdir -p "$HOME/lib"
             curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --retry-max-time 600 \
               "https://dl.google.com/android/repository/android-ndk-r30-linux.zip" \
               --output "$RUNNER_TEMP/android-ndk-r30.zip"
+            echo "753611f410d002cfcd3f3dc2ef49aad532089d3180b436c060a90bf0fcb64df2  $RUNNER_TEMP/android-ndk-r30.zip" | sha256sum --check -
             unzip -q "$RUNNER_TEMP/android-ndk-r30.zip" -d "$HOME/lib"
             rm "$RUNNER_TEMP/android-ndk-r30.zip"
           fi
-          test -x "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang"
+          test -x "$NDK_CLANG"
           echo "NDK=$NDK_DIR" >> "$GITHUB_ENV"
-          echo "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+          echo "$NDK_BIN" >> "$GITHUB_PATH"
 
       - name: Build pinned QEMU for Android ARM64
         working-directory: termux-packages

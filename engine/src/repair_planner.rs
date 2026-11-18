@@ -46,7 +46,9 @@ pub struct RepairPlan {
 
 impl RepairPlan {
     pub fn has_high_risk_actions(&self) -> bool {
-        self.actions.iter().any(|action| action.risk == RepairRisk::High)
+        self.actions
+            .iter()
+            .any(|action| action.risk == RepairRisk::High)
     }
 }
 
@@ -68,7 +70,7 @@ pub fn plan_repairs(report: &DoctorReport) -> RepairPlan {
         if let Some(existing) = actions.iter_mut().find(|action: &&mut RepairAction| {
             action.id == id && action.distro_id == diagnostic.distro_id
         }) {
-            let action = *existing;
+            let action = &mut *existing;
             if handled.insert((id.to_owned(), diagnostic.code.clone())) {
                 action.source_codes.push(diagnostic.code.clone());
             }
@@ -100,7 +102,14 @@ pub fn plan_repairs(report: &DoctorReport) -> RepairPlan {
     }
 }
 
-type Recommendation = (&'static str, RepairRisk, &'static str, &'static str, &'static [&'static str], bool);
+type Recommendation = (
+    &'static str,
+    RepairRisk,
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+    bool,
+);
 
 fn recommendation(diagnostic: &Diagnostic) -> Option<Recommendation> {
     use DiagnosticLevel::{Error, Warning};
@@ -229,13 +238,16 @@ mod tests {
             schema_version: 1,
             healthy: false,
             checked_distributions: 1,
-            diagnostics: codes.iter().map(|(code, level)| Diagnostic {
-                code: (*code).to_owned(),
-                level: *level,
-                distro_id: Some("alpine".to_owned()),
-                message: "test finding".to_owned(),
-                path: None,
-            }).collect(),
+            diagnostics: codes
+                .iter()
+                .map(|(code, level)| Diagnostic {
+                    code: (*code).to_owned(),
+                    level: *level,
+                    distro_id: Some("alpine".to_owned()),
+                    message: "test finding".to_owned(),
+                    path: None,
+                })
+                .collect(),
         }
     }
 
@@ -257,14 +269,20 @@ mod tests {
 
     #[test]
     fn missing_storage_gets_low_risk_initialization_suggestion() {
-        let plan = plan_repairs(&report(&[("storage.base.missing", DiagnosticLevel::Warning)]));
+        let plan = plan_repairs(&report(&[(
+            "storage.base.missing",
+            DiagnosticLevel::Warning,
+        )]));
         assert_eq!(plan.actions[0].risk, RepairRisk::Low);
         assert!(!plan.actions[0].backup_recommended);
     }
 
     #[test]
     fn unknown_findings_are_not_silently_ignored() {
-        let plan = plan_repairs(&report(&[("future.unknown.problem", DiagnosticLevel::Error)]));
+        let plan = plan_repairs(&report(&[(
+            "future.unknown.problem",
+            DiagnosticLevel::Error,
+        )]));
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].id, "manual_review");
         assert!(plan.has_high_risk_actions());

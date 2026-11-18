@@ -2,13 +2,15 @@ package com.atdevdev.distroboxer
 
 import android.content.Context
 import android.system.Os
+import android.system.OsConstants
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 /**
- * Starts an installed Linux rootfs with PRoot inside the app's own sandbox.
- * PRoot is packaged per ABI and extracted by Android into nativeLibraryDir.
+ * Starts an installed Linux rootfs with the ABI-matched PRoot executable
+ * packaged in Android's native-library directory.
  */
 class ProotRuntime(context: Context) {
     private val appContext = context.applicationContext
@@ -17,61 +19,74 @@ class ProotRuntime(context: Context) {
     private var activeProcess: Process? = null
 
     @Synchronized
-    fun isRuntimeAvailable(): Boolean {
-        return isSafeRegularFile(prootFile) && prootFile.canExecute()
+    fun isRuntimeAvailable(): Boolean = runCatching {
+        if (!isSafeRegularFile(prootFile)) return@runCatching false
+        val mode = Os.stat(prootFile.absolutePath).st_mode
+        val executeMask = OsConstants.S_IXUSR or OsConstants.S_IXGRP or OsConstants.S_IXOTH
+        if ((mode and executeMask) == 0) return@runCatching false
+        Os.access(prootFile.absolutePath, OsConstants.X_OK) == 0
+    }.getOrDefault(false)
+
+    /** Host-side details included in startup errors to diagnose Android EACCES. */
+    fun runtimeDiagnostics(): String = runCatching {
+        val stat = Os.stat(prootFile.absolutePath)
+        "path=" + prootFile.absolutePath +
+            ", exists=" + prootFile.exists() +
+            ", size=" + prootFile.length() +
+            ", mode=" + Integer.toOctalString(stat.st_mode and 0x1FF) +
+            ", uid=" + stat.st_uid +
+            ", gid=" + stat.st_gid
+    }.getOrElse { error ->
+        "path=" + prootFile.absolutePath +
+            ", exists=" + prootFile.exists() +
+            ", nativeLibraryDir=" + appContext.applicationInfo.nativeLibraryDir +
+            ", diagnostic=" + (error.message ?: error.javaClass.simpleName)
     }
 
-    /**
-     * Confirms that Android extracted the ABI-matched PRoot executable into
-     * the app's native-library directory. Binaries in filesDir may be blocked
-     * by Android's no-execute policy, so PRoot is packaged as a native payload.
-     */
     @Synchronized
     fun installBundledRuntime(abi: String) {
         require(abi == "arm64-v8a" || abi == "x86_64") {
-            "Arquitectura Android no compatible con PRoot: $abi"
+            "Arquitectura Android no compatible con PRoot: " + abi
         }
         check(isRuntimeAvailable()) {
-            "Android no extrajo PRoot en el directorio de bibliotecas nativas."
+            "PRoot no está ejecutable desde el directorio nativo de Android (" +
+                runtimeDiagnostics() + ")."
         }
     }
 
-    /**
-     * Opens an interactive login shell in the selected distribution.
-     * The returned Process exposes stdin/stdout/stderr for a terminal UI.
-     */
     @Synchronized
     fun startShell(distroId: String, display: String? = null): Process {
-        require(activeProcess?.isAlive != true) { "Ya existe una sesión Linux activa" }
-        require(isRuntimeAvailable()) { "El ejecutable PRoot todavía no está instalado" }
+        check(activeProcess?.isAlive != true) { "Ya existe una sesión Linux activa" }
+        check(isRuntimeAvailable()) {
+            "PRoot no está disponible: " + runtimeDiagnostics()
+        }
 
         val rootfs = resolveRootfs(distroId)
-        // Algunos rootfs pueden llegar con los bits ejecutables de BusyBox/env
-        // alterados por el proceso de extracción o por el sistema de archivos.
-        // Reparamos únicamente los ejecutables de arranque, tras resolver sus
-        // symlinks y comprobar que siguen dentro del rootfs privado.
-        ensureGuestExecutable(rootfs, "bin/sh")
-        // PRoot crea archivos auxiliares en este directorio del host Android.
-        // No debe confundirse con TMPDIR=/tmp, que pertenece al Linux invitado.
+        val shellPath = if (File(rootfs, "bin/sh").exists()) "/bin/sh" else "/usr/bin/sh"
+        ensureGuestExecutable(rootfs, shellPath.removePrefix("/"))
+        ensureGuestDirectory(rootfs, "root", 0x1C0) // 0700
+        ensureGuestDirectory(rootfs, "tmp", 0x3FF) // 01777
+
         val prootTempDirectory = prepareProotTempDirectory()
-        // Ejecutamos el shell directamente: /usr/bin/env no es necesario y
-        // puede fallar en rootfs Android/PRoot por permisos o enlaces BusyBox.
-        // El entorno se entrega desde ProcessBuilder para evitar ese execve extra.
         val command = mutableListOf(
             prootFile.absolutePath,
             "--kill-on-exit",
             "--link2symlink",
-            "--sysvipc",
             "-0",
             "-r", rootfs.absolutePath,
             "-w", "/root",
-            "-b", "/dev",
-            "-b", "/proc",
-            "-b", "/sys",
-            "-b", "/system",
-            "-b", "/apex",
-            "/bin/sh", "-i",
         )
+
+        // Bind only Linux pseudo-filesystems. Android's /system and /apex are
+        // intentionally excluded: they are host internals and not guest mounts.
+        listOf("/dev", "/proc", "/sys").forEach { hostPath ->
+            val hostDirectory = File(hostPath)
+            if (hostDirectory.isDirectory && hostDirectory.canRead()) {
+                command += listOf("-b", hostPath)
+            }
+        }
+        command += listOf(shellPath, "-i")
+
         if (!display.isNullOrBlank()) {
             require(display == "127.0.0.1:1" || display.matches(Regex(":[0-9]{1,2}"))) {
                 "DISPLAY no válido"
@@ -79,7 +94,8 @@ class ProotRuntime(context: Context) {
         }
 
         val process = ProcessBuilder(command)
-            .directory(rootfs)
+            // Keep the host working directory outside the guest rootfs.
+            .directory(appContext.filesDir)
             .redirectErrorStream(true)
             .apply {
                 environment().clear()
@@ -95,26 +111,31 @@ class ProotRuntime(context: Context) {
             }
             .start()
 
+        // A successful ProcessBuilder.start() does not guarantee that PRoot
+        // could ptrace and execute the guest shell. Catch immediate EACCES here.
+        if (process.waitFor(600, TimeUnit.MILLISECONDS)) {
+            val startupOutput = runCatching {
+                process.inputStream.bufferedReader().use { it.readText() }
+            }.getOrDefault("")
+            throw IllegalStateException(
+                "PRoot terminó durante el arranque (código " + process.exitValue() + "). " +
+                    startupOutput.trim().ifEmpty { runtimeDiagnostics() }
+            )
+        }
+
         activeProcess = process
         return process
     }
 
-    /**
-     * Comprueba un ejecutable del invitado y restaura su bit de ejecución si falta.
-     * Los enlaces simbólicos se resuelven antes de cambiar permisos para evitar
-     * modificar rutas que apunten fuera del rootfs de la distribución.
-     */
+    /** Repairs the shell's execute bit and its parent traversal permissions safely. */
     private fun ensureGuestExecutable(rootfs: File, relativePath: String) {
         val root = rootfs.canonicalFile
         val entry = File(root, relativePath)
         val target = entry.canonicalFile
         check(target.toPath().startsWith(root.toPath()) && target.isFile) {
-            "El ejecutable Linux /$relativePath no existe o apunta fuera del rootfs."
+            "El ejecutable Linux /" + relativePath + " no existe o apunta fuera del rootfs."
         }
 
-        // Android puede extraer correctamente el archivo, pero dejar algún
-        // directorio padre sin permiso de recorrido. Linux devuelve EACCES
-        // incluso cuando el propio shell tiene el bit ejecutable.
         val directories = mutableListOf<File>()
         var parent: File? = target.parentFile
         while (parent != null && parent.toPath().startsWith(root.toPath())) {
@@ -123,33 +144,57 @@ class ProotRuntime(context: Context) {
             parent = parent.parentFile
         }
         check(directories.lastOrNull() == root) {
-            "No se pudo validar la ruta completa del ejecutable /$relativePath."
+            "No se pudo validar la ruta completa del ejecutable /" + relativePath + "."
         }
 
         try {
             directories.asReversed().forEach { directory ->
                 val mode = Os.stat(directory.absolutePath).st_mode and 0x1FF
-                Os.chmod(directory.absolutePath, mode or 0x1ED)
+                Os.chmod(directory.absolutePath, mode or 0x1ED) // add 0755
             }
             val fileMode = Os.stat(target.absolutePath).st_mode and 0x1FF
             Os.chmod(target.absolutePath, fileMode or 0x1ED)
         } catch (error: Exception) {
             throw IllegalStateException(
-                "No se pudieron reparar los permisos de /$relativePath: ${error.message}",
+                "No se pudieron reparar los permisos de /" + relativePath + ": " + error.message,
                 error,
             )
         }
 
         check(target.canRead() && target.canExecute() &&
             directories.all { it.canRead() && it.canExecute() }) {
-            "El shell /$relativePath o alguno de sus directorios sigue sin permisos de lectura/ejecución."
+            "El shell /" + relativePath + " o alguno de sus directorios sigue sin permisos de lectura/ejecución."
         }
     }
 
     /**
-     * Prepara y prueba el directorio temporal del host que PRoot utiliza para
-     * sus archivos internos. Se valida la ruta canónica para no aceptar symlinks.
+     * Ensures the guest home and temporary directories exist with conventional
+     * Linux permissions. Symlinks are accepted only when they resolve inside rootfs.
      */
+    private fun ensureGuestDirectory(rootfs: File, relativePath: String, mode: Int) {
+        val root = rootfs.canonicalFile
+        val entry = File(root, relativePath)
+        if (!entry.exists()) {
+            check(entry.mkdirs()) { "No se pudo crear /" + relativePath + " dentro del rootfs." }
+        }
+        val target = entry.canonicalFile
+        check(target.toPath().startsWith(root.toPath()) && target.isDirectory) {
+            "La ruta /" + relativePath + " no es un directorio seguro dentro del rootfs."
+        }
+        try {
+            Os.chmod(target.absolutePath, mode)
+        } catch (error: Exception) {
+            throw IllegalStateException(
+                "No se pudieron corregir los permisos de /" + relativePath + ": " + error.message,
+                error,
+            )
+        }
+        check(target.canRead() && target.canWrite() && target.canExecute()) {
+            "El directorio /" + relativePath + " sigue sin permisos suficientes."
+        }
+    }
+
+    /** Prepares a writable, app-private host temporary directory for PRoot. */
     private fun prepareProotTempDirectory(): File {
         val cacheRoot = appContext.cacheDir.canonicalFile
         val tempDirectory = File(cacheRoot, "proot-tmp")
@@ -179,30 +224,23 @@ class ProotRuntime(context: Context) {
         return canonicalTemp
     }
 
-    /** Returns true only when a validated rootfs exists for this distro. */
     fun isDistroInstalled(distroId: String): Boolean = runCatching {
         resolveRootfs(distroId)
     }.isSuccess
 
-    /**
-     * Copies a source file into /root/projects inside the selected Linux rootfs and returns its destination.
-     * The project name is restricted to a plain filename; no path fragments are accepted.
-     */
     @Synchronized
     fun writeProjectFile(distroId: String, fileName: String, contents: String): File {
         require(fileName.matches(Regex("[A-Za-z0-9_-]{1,48}\\.(py|sh|js|ts|c|cpp|rs|txt|html|css)"))) {
             "Nombre o extensión de proyecto no válida"
         }
         val rootfs = resolveRootfs(distroId)
+        ensureGuestDirectory(rootfs, "root", 0x1C0)
         val rootDirectory = File(rootfs, "root")
-        if (!rootDirectory.exists()) check(rootDirectory.mkdirs()) { "No se pudo crear /root" }
         require(rootDirectory.canonicalFile.parentFile == rootfs.canonicalFile) {
             "Directorio /root no válido"
         }
+        ensureGuestDirectory(rootfs, "root/projects", 0x1C0)
         val projectsDirectory = File(rootDirectory, "projects")
-        if (!projectsDirectory.exists()) check(projectsDirectory.mkdirs()) {
-            "No se pudo crear /root/projects"
-        }
         val safeProjectsDirectory = projectsDirectory.canonicalFile
         require(safeProjectsDirectory.parentFile == rootDirectory.canonicalFile && safeProjectsDirectory.isDirectory) {
             "Directorio de proyectos no válido"
@@ -276,5 +314,4 @@ class ProotRuntime(context: Context) {
 
     private fun isSafeRegularFile(file: File): Boolean =
         file.exists() && file.isFile && file.canonicalFile == file.absoluteFile
-
 }
