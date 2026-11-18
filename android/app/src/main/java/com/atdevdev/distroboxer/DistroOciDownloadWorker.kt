@@ -15,6 +15,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -173,7 +175,7 @@ class DistroOciDownloadWorker(
             connection.readTimeout = 30000
             connection.setRequestProperty("User-Agent", "DistroBoxer/0.6")
             require(connection.responseCode == HttpURLConnection.HTTP_OK) { "OCI registry authentication failed" }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val body = String(readLimited(connection.inputStream, MAX_TOKEN_BYTES), Charsets.UTF_8)
             val json = JSONObject(body)
             return json.optString("token").ifBlank { json.optString("access_token") }
                 .also { require(it.isNotBlank()) { "OCI registry returned no anonymous pull token" } }
@@ -199,12 +201,27 @@ class DistroOciDownloadWorker(
             require(connection.responseCode == HttpURLConnection.HTTP_OK) {
                 "OCI registry manifest request failed: HTTP ${connection.responseCode}"
             }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
-            require(body.length <= MAX_MANIFEST_CHARS) { "OCI manifest is too large" }
+            val length = connection.contentLengthLong
+            require(length < 0 || length <= MAX_MANIFEST_BYTES) { "OCI manifest is too large" }
+            val body = String(readLimited(connection.inputStream, MAX_MANIFEST_BYTES), Charsets.UTF_8)
             return body to connection.getHeaderField("Docker-Content-Digest")
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun readLimited(input: InputStream, limit: Int): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(4096)
+        input.use { stream ->
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                require(output.size() + count <= limit) { "OCI registry response exceeds its size limit" }
+                output.write(buffer, 0, count)
+            }
+        }
+        return output.toByteArray()
     }
 
     private fun verifyManifestDigest(body: String, expected: String?) {
@@ -332,7 +349,8 @@ class DistroOciDownloadWorker(
         private const val MAX_REDIRECTS = 5
         private const val MAX_LAYER_BYTES = 2L * 1024L * 1024L * 1024L
         private const val MAX_TOTAL_BYTES = 4L * 1024L * 1024L * 1024L
-        private const val MAX_MANIFEST_CHARS = 2 * 1024 * 1024
+        private const val MAX_MANIFEST_BYTES = 2 * 1024 * 1024
+        private const val MAX_TOKEN_BYTES = 64 * 1024
         private val SUPPORTED_LAYER_TYPES = setOf(
             "application/vnd.oci.image.layer.v1.tar+gzip",
             "application/vnd.docker.image.rootfs.diff.tar.gzip",
