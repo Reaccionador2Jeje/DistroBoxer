@@ -188,8 +188,7 @@ fn recommendation(diagnostic: &Diagnostic) -> Option<Recommendation> {
             true,
         ),
         "distro.os_release.unreadable" | "distro.os_release.resolve_failed"
-        | "distro.rootfs.resolve_failed" | "distro.rootfs.unreadable"
-        | "distro.metadata.invalid" => (
+        | "distro.rootfs.resolve_failed" | "distro.rootfs.unreadable" => (
             "inspect_distribution_files",
             RepairRisk::High,
             "Inspect distribution files",
