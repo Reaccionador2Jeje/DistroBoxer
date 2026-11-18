@@ -49,4 +49,4 @@ The official Kali rolling image is a minimal container base and does not include
 - OCI whiteouts remove only paths contained within the staging rootfs.
 - Existing rootfs data is preserved until the new staging tree validates.
 
-The current code is an implementation preview. It still needs automated registry integration tests, physical-device installation tests for each supported ABI, upstream signature/cosign verification, and recovery tests for interrupted pulls. Floating tags also mean two installations at different times may resolve to different upstream snapshots.
+The current code is an implementation preview. It still needs automated registry integration tests, physical-device installation tests for each supported ABI, upstream signature/cosign verification, and recovery tests for interrupted pulls. Download cancellation removes partial blobs; native layer extraction is not yet interruptible. Floating tags also mean two installations at different times may resolve to different upstream snapshots.
