@@ -4,7 +4,7 @@ use jni::objects::{JObject, JString};
 use jni::sys::{jboolean, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 
-use crate::{supported_distros, StorageManager};
+use crate::{supported_distros, InstallStatus, StorageManager};
 
 /// Returns the Rust distribution catalog as a JSON string.
 #[no_mangle]
@@ -80,6 +80,38 @@ pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeIsInstal
     match StorageManager::new(base_directory).is_installed(&distro_id) {
         Ok(true) => JNI_TRUE,
         Ok(false) | Err(_) => JNI_FALSE,
+    }
+}
+
+/// Marks an installation as failed when the Android PRoot smoke test rejects it.
+#[no_mangle]
+pub extern "system" fn Java_com_atdevdev_distroboxer_NativeBridge_nativeSetInstallFailed(
+    mut env: JNIEnv,
+    _this: JObject,
+    distro_id: JString,
+    base_directory: JString,
+    reason: JString,
+) -> jboolean {
+    let distro_id: String = match env.get_string(&distro_id) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+    let base_directory: String = match env.get_string(&base_directory) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+    let reason: String = match env.get_string(&reason) {
+        Ok(value) => value.into(),
+        Err(_) => return JNI_FALSE,
+    };
+
+    match StorageManager::new(base_directory).set_status(
+        &distro_id,
+        InstallStatus::Failed,
+        Some(reason),
+    ) {
+        Ok(()) => JNI_TRUE,
+        Err(_) => JNI_FALSE,
     }
 }
 
