@@ -8,6 +8,15 @@ colors:
   background: "#0B1317"
   surface: "#141F24"
   surface-raised: "#1E2D33"
+  panel-strong: "#203438"
+  primary-surface: "#29382A"
+  on-primary: "#202A12"
+  success-surface: "#20362D"
+  warning-surface: "#352A1F"
+  terminal: "#091310"
+  terminal-text: "#D9E7D7"
+  terminal-muted: "#8DA39A"
+  editor: "#0D171C"
   border: "#304147"
   text: "#E9ECE4"
   muted: "#A4B1AD"
@@ -56,7 +65,7 @@ DistroBoxer should feel like a compact field workstation for Linux: the tactile 
 
 ## Colors
 
-The palette is mineral and readable rather than black-and-neon. `primary` (#C7E36A) is a soft citron signal for primary actions and selected states. `secondary` (#86BAC5) is a cool blue for supporting information. `background` (#0B1317), `surface` (#141F24), and `surface-raised` (#1E2D33) establish depth through tonal steps; `border` (#304147) defines structure without heavy outlines. `text` (#E9ECE4) and `muted` (#A4B1AD) carry hierarchy. `success`, `warning`, and `danger` are reserved for actual state semantics and are never the only state cue.
+The palette is mineral and readable rather than black-and-neon. `primary` (#C7E36A) is a soft citron signal for primary actions and selected states; `on-primary` (#202A12) provides legible foreground contrast. `primary-surface` (#29382A), `success-surface` (#20362D), and `warning-surface` (#352A1F) are reserved for their corresponding semantic states. `secondary` (#86BAC5) is a cool blue for supporting information. `background` (#0B1317), `surface` (#141F24), and `surface-raised` (#1E2D33) establish depth through tonal steps; `border` (#304147) defines structure without heavy outlines. `text` (#E9ECE4) and `muted` (#A4B1AD) carry hierarchy. `panel-strong` (#203438) distinguishes emphasized panels; `terminal` (#091310), `terminal-text` (#D9E7D7), and `terminal-muted` (#8DA39A) define the terminal surface; `editor` (#0D171C) is reserved for code-editing surfaces. `success`, `warning`, and `danger` are reserved for actual state semantics and are never the only state cue.
 
 ## Typography
 
