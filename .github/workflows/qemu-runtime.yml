@@ -33,13 +33,29 @@ jobs:
           cd termux-packages
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("scripts/properties.sh")
-          s = p.read_text()
-          old = 'TERMUX_APP__PACKAGE_NAME="com.termux"'
-          new = 'TERMUX_APP__PACKAGE_NAME="com.atdevdev.distroboxer"'
-          if s.count(old) != 1:
-              raise SystemExit("Could not safely set the DistroBoxer package namespace")
-          p.write_text(s.replace(old, new))
+
+          # Use the isolated Termux build directory instead of Android-only
+          # /data paths when cross-compiling on a hosted Linux runner.
+          patches = {
+              Path("scripts/properties.sh"): (
+                  'TERMUX_APP__PACKAGE_NAME="com.termux"',
+                  'TERMUX_APP__PACKAGE_NAME="com.atdevdev.distroboxer"',
+              ),
+              Path("scripts/build/termux_step_handle_buildarch.sh"): (
+                  'local TERMUX_ARCH_FILE=/data/TERMUX_ARCH',
+                  'local TERMUX_ARCH_FILE="$TERMUX_TOPDIR/TERMUX_ARCH"\n\tmkdir -p "$TERMUX_TOPDIR"',
+              ),
+              Path("scripts/build/termux_step_setup_variables.sh"): (
+                  'TERMUX_BUILT_PACKAGES_DIRECTORY="/data/data/.built-packages"',
+                  'TERMUX_BUILT_PACKAGES_DIRECTORY="$TERMUX_TOPDIR/.built-packages"\n\tmkdir -p "$TERMUX_BUILT_PACKAGES_DIRECTORY"',
+              ),
+          }
+
+          for path, (old, new) in patches.items():
+              source = path.read_text()
+              if source.count(old) != 1:
+                  raise SystemExit(f"Could not safely patch {path}: expected one match")
+              path.write_text(source.replace(old, new))
           PY
           mkdir -p x11-packages/qemu-system-aarch64
           cp ../packaging/termux-qemu/build.sh x11-packages/qemu-system-aarch64/build.sh

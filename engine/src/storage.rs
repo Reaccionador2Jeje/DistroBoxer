@@ -299,14 +299,20 @@ impl StorageManager {
             io::Error::new(io::ErrorKind::InvalidInput, "unsupported distribution")
         })?;
         if distro.archive_format != "oci" {
-            return Err(io::Error::new(io::ErrorKind::Unsupported, "distribution does not use OCI bootstrap"));
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "distribution does not use OCI bootstrap",
+            ));
         }
 
         let distro_dir = self.prepare_distro(id)?;
         let downloads_dir = fs::canonicalize(distro_dir.join("downloads"))?;
         let manifest_path = fs::canonicalize(manifest_path)?;
         if !manifest_path.starts_with(&downloads_dir) {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "OCI manifest must be inside private downloads"));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "OCI manifest must be inside private downloads",
+            ));
         }
 
         self.set_status(id, InstallStatus::NotInstalled, None)?;
@@ -319,11 +325,16 @@ impl StorageManager {
         let result = (|| {
             remove_real_directory_if_present(&staging)?;
             if fs::symlink_metadata(&backup).is_ok() {
-                return Err(io::Error::new(io::ErrorKind::AlreadyExists, "rootfs backup exists; manual recovery is required"));
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "rootfs backup exists; manual recovery is required",
+                ));
             }
             fs::create_dir(&staging)?;
             progress("Aplicando capas OCI verificadas…".to_owned());
-            crate::oci::extract_oci_layers_with_progress(&manifest_path, &staging, |line| progress(line))?;
+            crate::oci::extract_oci_layers_with_progress(&manifest_path, &staging, |line| {
+                progress(line)
+            })?;
             progress("Validando identidad de la distribución…".to_owned());
             validate_rootfs_release_file(&staging, id)?;
 
@@ -385,11 +396,59 @@ impl StorageManager {
             return Ok(false);
         }
         match fs::metadata(&resolved_release) {
-            Ok(metadata) => Ok(metadata.is_file()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(error),
+            Ok(metadata) if metadata.is_file() => {}
+            Ok(_) => return Ok(false),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
         }
+
+        Ok(validate_rootfs_shell(&rootfs).is_ok())
     }
+}
+
+fn validate_rootfs_shell(rootfs: &Path) -> io::Result<()> {
+    let root = fs::canonicalize(rootfs)?;
+    let candidates = [root.join("bin/sh"), root.join("usr/bin/sh")];
+
+    for candidate in candidates {
+        let resolved = match fs::canonicalize(&candidate) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        if !resolved.starts_with(&root) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem shell resolves outside the rootfs",
+            ));
+        }
+
+        let metadata = fs::metadata(&resolved)?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root filesystem shell is not a regular file",
+            ));
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "root filesystem shell has no execute permission",
+                ));
+            }
+        }
+
+        return Ok(());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "root filesystem is missing /bin/sh and /usr/bin/sh",
+    ))
 }
 
 fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<()> {
@@ -435,6 +494,8 @@ fn validate_rootfs_release_file(rootfs: &Path, expected_id: &str) -> io::Result<
             "root filesystem distribution ID does not match the selected profile",
         ));
     }
+
+    validate_rootfs_shell(rootfs)?;
     Ok(())
 }
 
@@ -517,7 +578,17 @@ mod tests {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, "etc/os-release", &contents[..]).unwrap();
+        builder
+            .append_data(&mut header, "etc/os-release", &contents[..])
+            .unwrap();
+        let shell = b"#!/bin/sh\necho distroboxer-test\n";
+        let mut shell_header = Header::new_gnu();
+        shell_header.set_size(shell.len() as u64);
+        shell_header.set_mode(0o755);
+        shell_header.set_cksum();
+        builder
+            .append_data(&mut shell_header, "bin/sh", &shell[..])
+            .unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
@@ -532,7 +603,9 @@ mod tests {
         });
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
-        manager.install_oci_layers_with_progress("debian", &manifest_path, |_| {}).unwrap();
+        manager
+            .install_oci_layers_with_progress("debian", &manifest_path, |_| {})
+            .unwrap();
         assert!(manager.is_installed("debian").unwrap());
         assert_eq!(
             manager.read_metadata("debian").unwrap().unwrap().status,
@@ -584,6 +657,14 @@ mod tests {
         builder
             .append_data(&mut header, "etc/os-release", &contents[..])
             .unwrap();
+        let shell = b"#!/bin/sh\necho distroboxer-test\n";
+        let mut shell_header = Header::new_gnu();
+        shell_header.set_size(shell.len() as u64);
+        shell_header.set_mode(0o755);
+        shell_header.set_cksum();
+        builder
+            .append_data(&mut shell_header, "bin/sh", &shell[..])
+            .unwrap();
         builder.into_inner().unwrap().finish().unwrap();
 
         let digest = crate::sha256_file(&archive_path).unwrap();
@@ -615,9 +696,77 @@ mod tests {
         fs::create_dir_all(rootfs.join("etc")).unwrap();
         fs::write(rootfs.join("usr/lib/os-release"), "ID=alpine\n").unwrap();
         symlink("../usr/lib/os-release", rootfs.join("etc/os-release")).unwrap();
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        fs::write(rootfs.join("bin/sh"), "#!/bin/sh\n").unwrap();
+        let mut shell_permissions = fs::metadata(rootfs.join("bin/sh")).unwrap().permissions();
+        use std::os::unix::fs::PermissionsExt;
+        shell_permissions.set_mode(0o755);
+        fs::set_permissions(rootfs.join("bin/sh"), shell_permissions).unwrap();
 
         validate_rootfs_release_file(&rootfs, "alpine").unwrap();
         assert!(manager.is_installed("alpine").unwrap());
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn rootfs_with_os_release_but_no_shell_is_not_installed() {
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("etc")).unwrap();
+        fs::write(rootfs.join("etc/os-release"), "ID=debian\n").unwrap();
+
+        assert!(!manager.is_installed("debian").unwrap());
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_rootfs_shell_symlink_that_escapes_rootfs() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_dir();
+        let outside = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let outside_shell = outside.join("sh");
+        fs::write(&outside_shell, "#!/bin/sh\n").unwrap();
+        symlink(&outside_shell, rootfs.join("bin/sh")).unwrap();
+
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        fs::remove_dir_all(base).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_rootfs_shell_without_execute_permission() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let base = temp_dir();
+        let manager = StorageManager::new(&base);
+        let rootfs = manager.prepare_distro("debian").unwrap().join("rootfs");
+        fs::create_dir_all(rootfs.join("bin")).unwrap();
+        let shell = rootfs.join("bin/sh");
+        fs::write(&shell, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&shell, fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert_eq!(
+            validate_rootfs_shell(&rootfs).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
 
         fs::remove_dir_all(base).unwrap();
     }

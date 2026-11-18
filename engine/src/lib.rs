@@ -9,24 +9,29 @@ use std::path::{Path, PathBuf};
 mod android_jni;
 
 pub mod doctor;
-pub mod runtime_detection;
-pub mod repair_planner;
-pub mod oci;
 pub mod installer;
 pub mod integrity;
 pub mod metadata;
+pub mod oci;
+pub mod repair_planner;
+pub mod runtime_detection;
 pub mod storage;
 pub mod storage_analyzer;
 
+pub use doctor::{run_distro_doctor, run_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
 pub use integrity::{sha256_file, verify_sha256};
-pub use doctor::{run_doctor, run_distro_doctor, Diagnostic, DiagnosticLevel, DoctorReport};
-pub use runtime_detection::{detect_runtimes, normalize_architecture, DetectedRuntime, RuntimeReport};
-pub use repair_planner::{plan_repairs, RepairAction, RepairPlan, RepairRisk};
 pub use oci::extract_oci_layers_with_progress;
+pub use repair_planner::{plan_repairs, RepairAction, RepairPlan, RepairRisk};
+pub use runtime_detection::{
+    detect_runtimes, normalize_architecture, DetectedRuntime, RuntimeReport,
+};
 
 pub use metadata::{DistroMetadata, InstallStatus};
 pub use storage::StorageManager;
-pub use storage_analyzer::{analyze_storage, DirectoryUsage, DistributionStorage, StorageFinding, StorageFindingLevel, StorageReport};
+pub use storage_analyzer::{
+    analyze_storage, DirectoryUsage, DistributionStorage, StorageFinding, StorageFindingLevel,
+    StorageReport,
+};
 
 /// Metadata for a supported Linux distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -234,6 +239,15 @@ mod tests {
         fs::create_dir_all(rootfs.join("etc")).expect("rootfs directories should be created");
         fs::write(rootfs.join("etc/os-release"), "ID=debian\n")
             .expect("release file should be written");
+        fs::create_dir_all(rootfs.join("bin")).expect("shell directory should be created");
+        let shell = rootfs.join("bin/sh");
+        fs::write(&shell, "#!/bin/sh\n").expect("shell should be written");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&shell, fs::Permissions::from_mode(0o755))
+                .expect("shell should be executable");
+        }
         assert!(is_installed(&base, "debian"));
 
         fs::remove_dir_all(&base).expect("test directory should be removed");
