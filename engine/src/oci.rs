@@ -172,6 +172,9 @@ fn remove_inside_root(root: &Path, relative: &Path) -> io::Result<()> {
 }
 
 fn resolve_existing_directory(root: &Path, relative: &Path) -> io::Result<Option<PathBuf>> {
+    if relative.as_os_str().is_empty() {
+        return Ok(Some(root.to_path_buf()));
+    }
     validate_relative(relative)?;
     let mut current = root.to_path_buf();
     for component in relative.components() {
