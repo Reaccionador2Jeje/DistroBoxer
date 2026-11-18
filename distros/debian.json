@@ -2,9 +2,14 @@
   "id": "debian",
   "name": "Debian",
   "package_manager": "apt",
-  "architectures": ["aarch64", "x86_64"],
+  "architectures": [
+    "aarch64",
+    "x86_64"
+  ],
+  "bootstrap": "Official Debian stable-slim OCI image",
+  "homepage": "https://www.debian.org/",
   "archive_format": "oci",
-  "status": "planned",
-  "rootfs_source": null,
-  "checksum": null
+  "status": "installer-preview",
+  "image": "library/debian",
+  "tag": "stable-slim"
 }
