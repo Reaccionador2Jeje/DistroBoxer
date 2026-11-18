@@ -751,17 +751,6 @@ for numero in range(1, 6):
                     }
                 }
                 AppTab.TERMINAL -> TerminalPage(
-                    qemuAvailable = qemuAvailable,
-                    qemuVmStatus = qemuVmStatus,
-                    qemuVmRunning = qemuRuntime.isRunning(),
-                    qemuDiskReady = qemuRuntime.hasDisk(qemuVmId),
-                    qemuBootReady = qemuRuntime.hasBootInputs(qemuVmId),
-                    qemuVncEnabled = qemuVncEnabled,
-                    onImportKernel = { qemuKernelPicker.launch(arrayOf("*/*")) },
-                    onImportInitrd = { qemuInitrdPicker.launch(arrayOf("*/*")) },
-                    onCreateQemuDisk = { createQemuDisk() },
-                    onStartQemu = { startQemuVm() },
-                    onToggleQemuVnc = { qemuVncEnabled = it },
                     prootAvailable = prootAvailable,
                     prootInstallStatus = prootInstallStatus,
                     installedDistros = catalog.distros.filter {
@@ -1116,17 +1105,6 @@ private fun DistroCard(
 
 @Composable
 private fun TerminalPage(
-    qemuAvailable: Boolean,
-    qemuVmStatus: String,
-    qemuVmRunning: Boolean,
-    qemuDiskReady: Boolean,
-    qemuBootReady: Boolean,
-    qemuVncEnabled: Boolean,
-    onImportKernel: () -> Unit,
-    onImportInitrd: () -> Unit,
-    onCreateQemuDisk: () -> Unit,
-    onStartQemu: () -> Unit,
-    onToggleQemuVnc: (Boolean) -> Unit,
     prootAvailable: Boolean,
     prootInstallStatus: String,
     installedDistros: List<DistroUi>,
@@ -1163,57 +1141,16 @@ private fun TerminalPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Terminal Linux", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Terminal serial de máquinas virtuales QEMU, con PRoot temporal como compatibilidad.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = DistroPalette.panelStrong),
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("QEMU SYSTEM · VM PRINCIPAL", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(qemuVmStatus, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onImportKernel) { Text("Importar kernel") }
-                    Button(onClick = onImportInitrd) { Text("Importar initrd") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onCreateQemuDisk, enabled = qemuAvailable && !qemuDiskReady) {
-                        Text(if (qemuDiskReady) "Disco creado" else "Crear disco 12 GiB")
-                    }
-                    Button(onClick = onStartQemu, enabled = qemuAvailable && qemuDiskReady && qemuBootReady && !qemuVmRunning) {
-                        Text("Iniciar VM")
-                    }
-                }
-                Button(onClick = onStopSession, enabled = qemuVmRunning, modifier = Modifier.fillMaxWidth()) {
-                    Text("Detener VM QEMU")
-                }
-                FilterChip(
-                    selected = qemuVncEnabled,
-                    onClick = { onToggleQemuVnc(!qemuVncEnabled) },
-                    label = { Text(if (qemuVncEnabled) "VNC activado" else "VNC opcional") },
-                )
-                Text(
-                    "Kernel: " + (if (qemuBootReady) "kernel + initrd importados" else "faltan kernel/initrd") +
-                        " · Disco: " + (if (qemuDiskReady) "QCOW2 listo" else "pendiente"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                Text(
-                    "La consola serial se conecta a esta terminal. VNC, si se activa, escucha solo en 127.0.0.1:5901.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
+        Text("Terminal Linux con PRoot. Selecciona una distribución instalada para abrir su shell.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         SectionCard(
-            title = "PRoot · compatibilidad temporal",
+            title = "PRoot · runtime Linux",
             value = if (prootAvailable) "Instalado y verificado" else "No disponible",
             detail = prootInstallStatus,
             good = prootAvailable,
         )
         Text("Distribución", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         if (installedDistros.isEmpty()) {
-            Text("Todavía no hay distribuciones instaladas. Instala Alpine desde Distros para abrir tu primera shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Todavía no hay distribuciones instaladas. Instala una distribución desde Distros para abrir tu primera shell Linux.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick = onOpenDistros, modifier = Modifier.fillMaxWidth()) { Text("Ir a Distros") }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
