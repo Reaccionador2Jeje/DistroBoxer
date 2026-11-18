@@ -79,9 +79,11 @@ class ProotRuntime(context: Context) {
             }
         }
 
+        val outputFile = File.createTempFile("proot-validation-", ".log", appContext.cacheDir)
         val process = ProcessBuilder(command)
             .directory(rootfs)
             .redirectErrorStream(true)
+            .redirectOutput(outputFile)
             .apply {
                 environment().clear()
                 environment()["HOME"] = "/root"
@@ -204,7 +206,7 @@ class ProotRuntime(context: Context) {
             "void" -> "xbps-install"
             else -> error("No hay una prueba de gestor de paquetes para $distroId")
         }
-        val script = "set -eu; test -r /etc/os-release; test -w /root; test -w /tmp; command -v $packageManager >/dev/null; printf '%s\\n' DISTROBOXER_PROOT_OK"
+        val script = "set -eu; test -r /etc/os-release; test -w /root; test -w /tmp; command -v $packageManager >/dev/null; echo DISTROBOXER_PROOT_OK"
         val command = listOf(
             prootFile.absolutePath,
             "--kill-on-exit",
@@ -235,13 +237,17 @@ class ProotRuntime(context: Context) {
             }
             .start()
 
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        if (!process.waitFor(45, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            error("La prueba PRoot de $distroId superó el tiempo límite.")
-        }
-        check(process.exitValue() == 0 && output.contains("DISTROBOXER_PROOT_OK")) {
-            "La instalación de $distroId no superó la prueba PRoot (código ${process.exitValue()}): ${output.takeLast(1200)}"
+        try {
+            if (!process.waitFor(45, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                error("La prueba PRoot de $distroId superó el tiempo límite.")
+            }
+            val output = outputFile.readText()
+            check(process.exitValue() == 0 && output.contains("DISTROBOXER_PROOT_OK")) {
+                "La instalación de $distroId no superó la prueba PRoot (código ${process.exitValue()}): ${output.takeLast(1200)}"
+            }
+        } finally {
+            outputFile.delete()
         }
     }
 
