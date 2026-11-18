@@ -68,6 +68,28 @@ import java.io.File
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 
+private object DistroPalette {
+    val accent = Color(0xFFC7E36A)
+    val onAccent = Color(0xFF202A12)
+    val secondary = Color(0xFF86BAC5)
+    val background = Color(0xFF0B1317)
+    val surface = Color(0xFF141F24)
+    val surfaceRaised = Color(0xFF1E2D33)
+    val panelStrong = Color(0xFF203438)
+    val primarySurface = Color(0xFF29382A)
+    val successSurface = Color(0xFF20362D)
+    val warningSurface = Color(0xFF352A1F)
+    val text = Color(0xFFE9ECE4)
+    val muted = Color(0xFFA4B1AD)
+    val mutedText = Color(0xFFB7C5C0)
+    val warning = Color(0xFFE8AA68)
+    val danger = Color(0xFFE47F78)
+    val terminal = Color(0xFF091310)
+    val terminalText = Color(0xFFD9E7D7)
+    val terminalMuted = Color(0xFF8DA39A)
+    val editor = Color(0xFF0D171C)
+}
+
 private data class DistroUi(
     val id: String,
     val name: String,
@@ -136,14 +158,16 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF62E6B7),
-                    onPrimary = Color(0xFF06251B),
-                    secondary = Color(0xFF8AB9FF),
-                    background = Color(0xFF080F1B),
-                    surface = Color(0xFF111D2D),
-                    surfaceVariant = Color(0xFF1A2A3E),
-                    onSurface = Color(0xFFEAF2FA),
-                    onSurfaceVariant = Color(0xFFA4B5C8),
+                    primary = DistroPalette.accent,
+                    onPrimary = DistroPalette.onAccent,
+                    secondary = DistroPalette.secondary,
+                    tertiary = DistroPalette.warning,
+                    background = DistroPalette.background,
+                    surface = DistroPalette.surface,
+                    surfaceVariant = DistroPalette.surfaceRaised,
+                    onSurface = DistroPalette.text,
+                    onSurfaceVariant = DistroPalette.muted,
+                    error = DistroPalette.danger,
                 ),
             ) {
                 if (crashReport.isBlank()) {
@@ -525,7 +549,11 @@ for numero in range(1, 6):
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF101A29)) {
+            NavigationBar(
+                containerColor = DistroPalette.surface,
+                contentColor = DistroPalette.text,
+                tonalElevation = 0.dp,
+            ) {
                 AppTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
@@ -546,32 +574,34 @@ for numero in range(1, 6):
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 14.dp, bottom = 18.dp),
+                    .padding(top = 12.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        modifier = Modifier.size(46.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        color = Color(0xFF163B36),
+                        modifier = Modifier.size(42.dp),
+                        shape = RoundedCornerShape(13.dp),
+                        color = DistroPalette.accent,
                     ) {
-                        androidx.compose.foundation.layout.Box(
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("DB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                        androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+                            Text("db", color = DistroPalette.onAccent, fontWeight = FontWeight.Black)
                         }
                     }
                     Column(Modifier.padding(start = 11.dp)) {
                         Text("DistroBoxer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("LINUX ENVIRONMENT MANAGER", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "LINUX WORKSPACE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
-                Surface(shape = RoundedCornerShape(50), color = Color(0xFF17372F)) {
+                Surface(shape = RoundedCornerShape(9.dp), color = DistroPalette.surfaceRaised) {
                     Text(
-                        "BETA 0.3",
-                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                        color = MaterialTheme.colorScheme.primary,
+                        "0.3.0  /  BETA",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        color = DistroPalette.secondary,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                     )
@@ -610,7 +640,12 @@ for numero in range(1, 6):
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(15.dp),
-                        label = { Text("Buscar distro o gestor") },
+                        label = { Text("Buscar distribución o gestor") },
+                        trailingIcon = {
+                            if (search.isNotEmpty()) {
+                                TextButton(onClick = { search = "" }) { Text("Limpiar") }
+                            }
+                        },
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -791,71 +826,127 @@ private fun HomePage(
     onOpenProgramming: () -> Unit,
     onOpenDesktop: () -> Unit,
 ) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
-                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = DistroPalette.panelStrong),
+                shape = RoundedCornerShape(22.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(21.dp)) {
-                    Text("TU LINUX. TUS REGLAS.", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(10.dp))
-                    Text("Un universo Linux en tu bolsillo.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Gestiona distribuciones y prepara tu entorno desde una sola aplicación.", color = Color(0xFFC4D5DF))
-                    Spacer(Modifier.height(18.dp))
+                Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "DISTROBOXER  /  WORKSPACE",
+                            color = DistroPalette.accent,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Surface(shape = RoundedCornerShape(8.dp), color = DistroPalette.surfaceRaised) {
+                            Text(
+                                "OPEN SOURCE",
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                color = DistroPalette.secondary,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    Text(
+                        "Linux, listo para ponerse en marcha.",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = DistroPalette.text,
+                    )
+                    Text(
+                        "Administra distribuciones y trabaja con tus entornos desde un solo lugar.",
+                        color = DistroPalette.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     Button(onClick = onOpenDistros) { Text("Explorar distribuciones  →") }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("RUNTIME", color = DistroPalette.muted, style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            if (engineConnected) "MOTOR CONECTADO" else "MODO LIMITADO",
+                            color = if (engineConnected) DistroPalette.accent else DistroPalette.warning,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text("·", color = DistroPalette.muted)
+                        Text(deviceAbi.uppercase(), color = DistroPalette.secondary, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("DISTROS", distroCount.toString(), Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                MetricCard("CATÁLOGO", distroCount.toString(), Modifier.weight(1f))
                 MetricCard("INSTALADAS", installedCount.toString(), Modifier.weight(1f))
-                MetricCard("ARQUITECTURA", if (deviceAbi == "arm64-v8a") "ARM64" else deviceAbi.uppercase(), Modifier.weight(1f))
+                MetricCard(
+                    "ARQUITECTURA",
+                    if (deviceAbi == "arm64-v8a") "ARM64" else deviceAbi.uppercase(),
+                    Modifier.weight(1f),
+                )
             }
         }
         item {
             SectionCard(
-                title = "Estado del motor",
-                value = if (engineConnected) "Conectado" else "Modo demostración",
-                detail = if (engineConnected) "El catálogo está sincronizado con el motor Rust." else "La biblioteca nativa no está disponible en esta compilación.",
+                title = "Motor compartido",
+                value = if (engineConnected) "Conectado" else "No disponible",
+                detail = if (engineConnected) {
+                    "El catálogo se está leyendo desde el motor Rust."
+                } else {
+                    "El catálogo de respaldo está visible; algunas funciones nativas pueden no estar disponibles."
+                },
                 good = engineConnected,
             )
         }
         item {
             SectionCard(
                 title = "Terminal Linux",
-                value = if (installedCount > 0) "Lista para usar" else "Instala una distribución",
+                value = if (installedCount > 0) "Hay entornos instalados" else "Todavía no hay entornos instalados",
                 detail = if (installedCount > 0) {
-                    "Abre cualquiera de tus distribuciones instaladas y ejecuta comandos Linux."
+                    "Abre una distribución instalada para iniciar una sesión cuando el runtime esté disponible."
                 } else {
-                    "Instala Alpine desde Distros. Después podrás abrir su shell PRoot desde aquí."
+                    "Instala una distribución compatible desde el catálogo para preparar tu primer entorno."
                 },
                 good = installedCount > 0,
             )
         }
         item {
-            Button(onClick = onOpenTerminal, modifier = Modifier.fillMaxWidth()) { Text("Abrir terminal Linux") }
+            Text("ACCESO RÁPIDO", color = DistroPalette.muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Código") }
-                Button(onClick = onOpenDesktop, modifier = Modifier.weight(1f)) { Text("Escritorio") }
+                Button(onClick = onOpenTerminal, modifier = Modifier.weight(1f)) { Text("Terminal") }
+                Button(onClick = onOpenProgramming, modifier = Modifier.weight(1f)) { Text("Programar") }
             }
+            Button(onClick = onOpenDesktop, modifier = Modifier.fillMaxWidth()) { Text("Escritorios Linux") }
         }
         item {
-            Text("Hecho por Atdev Dev · Sin compras dentro de la app", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+            Text(
+                "ATDEV DEV  ·  SOFTWARE LIBRE  ·  SIN COMPRAS INTEGRADAS",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }
 
 @Composable
 private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(13.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(15.dp),
+        colors = CardDefaults.cardColors(containerColor = DistroPalette.surfaceRaised),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = DistroPalette.muted)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = DistroPalette.accent)
         }
     }
 }
@@ -864,13 +955,34 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 private fun SectionCard(title: String, value: String, detail: String, good: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DistroPalette.surface),
     ) {
-        Column(Modifier.padding(17.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(value, color = if (good) MaterialTheme.colorScheme.primary else Color(0xFFFFC078), fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = if (good) DistroPalette.successSurface else DistroPalette.warningSurface,
+                ) {
+                    Text(
+                        if (good) "OK" else "REVISAR",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        color = if (good) DistroPalette.accent else DistroPalette.warning,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Text(
+                value,
+                color = if (good) DistroPalette.accent else DistroPalette.warning,
+                fontWeight = FontWeight.Bold,
+            )
             Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -888,25 +1000,53 @@ private fun DistroCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(19.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(containerColor = DistroPalette.surface),
     ) {
-        Column(Modifier.padding(17.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text(distro.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(distro.id.uppercase(), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                    Text(distro.id.uppercase(), color = DistroPalette.secondary, style = MaterialTheme.typography.labelSmall)
                 }
-                Surface(shape = RoundedCornerShape(50), color = Color(0xFF1B342E)) {
-                    Text(distro.packageManager, modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                Surface(shape = RoundedCornerShape(8.dp), color = DistroPalette.surfaceRaised) {
+                    Text(
+                        distro.packageManager,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        color = DistroPalette.accent,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(distro.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            Text("${distro.bootstrap} · ${distro.archiveFormat}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(onClick = onPrepare, enabled = engineConnected && !installed) { Text("Preparar espacio") }
+            Text(distro.description, color = DistroPalette.mutedText, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${distro.bootstrap}  ·  ${distro.archiveFormat}",
+                color = DistroPalette.muted,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (installed) DistroPalette.successSurface else DistroPalette.surfaceRaised,
+            ) {
+                Text(
+                    if (installed) "ENTORNO INSTALADO" else "PERFIL DISPONIBLE",
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                    color = if (installed) DistroPalette.accent else DistroPalette.secondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onPrepare,
+                    enabled = engineConnected && !installed,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Preparar espacio") }
                 if (distro.id == "alpine" && !installed) {
                     Button(onClick = onInstall, enabled = engineConnected) { Text("Instalar") }
                 }
@@ -915,8 +1055,11 @@ private fun DistroCard(
                 }
             }
             if (storageStatus != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(storageStatus, color = if (installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    storageStatus,
+                    color = if (installed) DistroPalette.accent else DistroPalette.mutedText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 if (storageStatus.contains("error", ignoreCase = true) ||
                     storageStatus.contains("no se pudo", ignoreCase = true) ||
                     storageStatus.contains("fall", ignoreCase = true) ||
@@ -927,8 +1070,8 @@ private fun DistroCard(
             }
             if (distro.id != "alpine" && !installed) {
                 Text(
-                    "Instalador Android próximamente. «Preparar espacio» no descarga ni instala Linux.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "El instalador Android para esta distribución todavía está en desarrollo. Preparar el espacio no instala Linux.",
+                    color = DistroPalette.muted,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -974,7 +1117,7 @@ private fun TerminalPage(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
+            colors = CardDefaults.cardColors(containerColor = DistroPalette.panelStrong),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("QEMU SYSTEM · VM PRINCIPAL", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -1035,17 +1178,17 @@ private fun TerminalPage(
         }
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
+            colors = CardDefaults.cardColors(containerColor = DistroPalette.terminal),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.padding(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("●  ●  ●", color = Color(0xFF62E6B7))
+                    Text("●  ●  ●", color = DistroPalette.accent)
                     Spacer(Modifier.weight(1f))
-                    Text(terminalStatus.uppercase(), color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
+                    Text(terminalStatus.uppercase(), color = DistroPalette.terminalMuted, style = MaterialTheme.typography.labelSmall)
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(terminalOutput, color = Color(0xFFD5E8DD), style = MaterialTheme.typography.bodySmall)
+                Text(terminalOutput, color = DistroPalette.terminalText, style = MaterialTheme.typography.bodySmall)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     val clipboard = LocalClipboardManager.current
                     TextButton(onClick = {
@@ -1108,7 +1251,7 @@ private fun ProgrammingPage(
         )
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1420)),
+            colors = CardDefaults.cardColors(containerColor = DistroPalette.editor),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.padding(12.dp)) {
@@ -1174,7 +1317,7 @@ private fun DesktopPage(
         Text("Servidor X11 integrado en DistroBoxer", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF142C37)),
+            colors = CardDefaults.cardColors(containerColor = DistroPalette.panelStrong),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.padding(18.dp)) {
@@ -1183,17 +1326,17 @@ private fun DesktopPage(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "El servidor X11 se ejecuta dentro de DistroBoxer y muestra su pantalla en esta vista. PRoot conecta las aplicaciones Linux al display local 127.0.0.1:1.",
-                    color = Color(0xFFC4D5DF),
+                    color = DistroPalette.mutedText,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "PRoot: " + (if (prootAvailable) "instalado" else "pendiente") +
                         " · X11: " + (if (x11Available) "integrado" else "no disponible"),
-                    color = if (x11Available && prootAvailable) MaterialTheme.colorScheme.primary else Color(0xFFFFC078),
+                    color = if (x11Available && prootAvailable) MaterialTheme.colorScheme.primary else DistroPalette.warning,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(x11Status, color = Color(0xFFC4D5DF), style = MaterialTheme.typography.bodySmall)
+                Text(x11Status, color = DistroPalette.mutedText, style = MaterialTheme.typography.bodySmall)
                 if (x11Status.contains("no se pudo", ignoreCase = true) ||
                     x11Status.contains("error", ignoreCase = true)
                 ) {
@@ -1262,8 +1405,8 @@ private fun DesktopEnvironmentCard(name: String, subtitle: String, detail: Strin
                 Spacer(Modifier.height(4.dp))
                 Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
-            Surface(shape = RoundedCornerShape(50), color = Color(0xFF34291B)) {
-                Text(status, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color(0xFFFFC078), style = MaterialTheme.typography.labelSmall)
+            Surface(shape = RoundedCornerShape(50), color = DistroPalette.warningSurface) {
+                Text(status, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = DistroPalette.warning, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
