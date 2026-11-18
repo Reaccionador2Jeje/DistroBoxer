@@ -20,7 +20,8 @@ This document defines the installation pipeline. The Alpine gzip path and a mult
 - Preserve the previous valid rootfs until a replacement is fully validated.
 - Remove only temporary files created by the current installation attempt.
 - Record a concise error state in `metadata.json`.
-- Support cancellation without marking a partial installation as complete.
+- Support cancellation during archive and OCI downloads, removing partial downloads.
+- Native layer extraction is not yet interruptible; the app must not report success until validation and promotion finish.
 - Never run downloaded shell scripts as part of installation.
 
 ## Trust and supply chain
