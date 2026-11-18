@@ -1,4 +1,6 @@
 //! JNI entry points used by the Android application.
+//!
+//! Android install success is gated by a PRoot runtime smoke test in WorkManager.
 
 use jni::objects::{JObject, JString};
 use jni::sys::{jboolean, jstring, JNI_FALSE, JNI_TRUE};
