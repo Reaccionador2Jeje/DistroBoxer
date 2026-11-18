@@ -2,6 +2,7 @@ const catalog = document.querySelector("#catalog");
 const engineStatus = document.querySelector("#engine-mini");
 const search = document.querySelector("#distro-search");
 const refreshButton = document.querySelector("#refresh-catalog");
+const clearSearchButton = document.querySelector("#clear-search");
 let distributions = [];
 
 const pages = {
@@ -15,9 +16,15 @@ const pages = {
 function navigate(page) {
   if (!pages[page]) return;
   document.querySelectorAll(".page").forEach((element) => element.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((element) => element.classList.toggle("active", element.dataset.page === page));
+  document.querySelectorAll(".nav-item").forEach((element) => {
+    const active = element.dataset.page === page;
+    element.classList.toggle("active", active);
+    if (active) element.setAttribute("aria-current", "page");
+    else element.removeAttribute("aria-current");
+  });
   document.getElementById(pages[page][1]).classList.add("active");
   document.querySelector("#page-title").textContent = pages[page][0];
+  document.title = `${pages[page][0]} · DistroBoxer`;
 }
 
 document.querySelectorAll("[data-page]").forEach((button) => {
@@ -61,6 +68,7 @@ function renderCatalog() {
       .some((value) => String(value || "").toLowerCase().includes(query))
   );
   catalog.replaceChildren();
+  if (clearSearchButton) clearSearchButton.hidden = query.length === 0;
   if (filtered.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
@@ -73,6 +81,12 @@ function renderCatalog() {
 }
 
 search?.addEventListener("input", renderCatalog);
+clearSearchButton?.addEventListener("click", () => {
+  if (!search) return;
+  search.value = "";
+  renderCatalog();
+  search.focus();
+});
 
 async function loadCatalog() {
   if (refreshButton) {
