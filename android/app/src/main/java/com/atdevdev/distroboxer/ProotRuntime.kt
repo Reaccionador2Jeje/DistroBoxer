@@ -24,8 +24,7 @@ class ProotRuntime(context: Context) {
         val mode = Os.stat(prootFile.absolutePath).st_mode
         val executeMask = OsConstants.S_IXUSR or OsConstants.S_IXGRP or OsConstants.S_IXOTH
         if ((mode and executeMask) == 0) return@runCatching false
-        Os.access(prootFile.absolutePath, OsConstants.X_OK)
-        true
+        Os.access(prootFile.absolutePath, OsConstants.X_OK) == 0
     }.getOrDefault(false)
 
     /** Host-side details included in startup errors to diagnose Android EACCES. */
