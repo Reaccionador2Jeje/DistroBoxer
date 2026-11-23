@@ -43,3 +43,5 @@ The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk
 ## Release channels
 
 Tagged versions trigger the GitHub prerelease workflow. Current APKs are testing builds, not production-signed releases. F-Droid publication is pending a reproducible offline build and official metadata review.
+
+See [PRoot runtime notes](../runtime/PROOT_ANDROID.md) for build provenance and Android-specific behavior.
