@@ -170,7 +170,7 @@ private fun DistroBoxerScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (selectedTab == AppTab.TERMINAL) Modifier
+                    if (selectedTab == AppTab.TERMINAL) Modifier.padding(innerPadding)
                     else Modifier.padding(innerPadding).padding(horizontal = 18.dp),
                 ),
         ) {
