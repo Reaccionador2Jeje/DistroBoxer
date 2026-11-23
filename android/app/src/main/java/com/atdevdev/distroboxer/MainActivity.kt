@@ -1,6 +1,7 @@
 package com.atdevdev.distroboxer
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -37,18 +38,25 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -136,6 +144,7 @@ private fun DistroBoxerScreen() {
     val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "Desconocida"
     val catalog = remember { loadDistroCatalog() }
     val context = LocalContext.current
+    val prootRuntime = remember(context) { ProotRuntime(context) }
     val storageStates = remember { mutableStateMapOf<String, String>() }
     var selectedTab by remember { mutableStateOf(AppTab.HOME) }
     var search by remember { mutableStateOf("") }
@@ -209,6 +218,7 @@ private fun DistroBoxerScreen() {
                 AppTab.HOME -> HomePage(
                     distroCount = catalog.distros.size,
                     engineConnected = catalog.engineConnected,
+                    prootAvailable = prootRuntime.isRuntimeAvailable(),
                     deviceAbi = deviceAbi,
                     installedCount = storageStates.values.count { it.contains("instalada", true) },
                     onOpenDistros = { selectedTab = AppTab.DISTROS },
@@ -274,7 +284,7 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage()
+                AppTab.TERMINAL -> TerminalPage(prootRuntime)
                 AppTab.DESKTOP -> DesktopPage()
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
@@ -296,6 +306,7 @@ private fun DistroBoxerScreen() {
 private fun HomePage(
     distroCount: Int,
     engineConnected: Boolean,
+    prootAvailable: Boolean,
     deviceAbi: String,
     installedCount: Int,
     onOpenDistros: () -> Unit,
@@ -336,10 +347,14 @@ private fun HomePage(
         }
         item {
             SectionCard(
-                title = "Terminal Linux",
-                value = "Próximamente",
-                detail = "La interfaz está preparada; falta integrar PRoot y las sesiones de shell.",
-                good = false,
+                title = "Runtime PRoot",
+                value = if (prootAvailable) "Disponible" else "No empaquetado",
+                detail = if (prootAvailable) {
+                    "El ejecutable PRoot está disponible para esta arquitectura. Instala una distro para abrir una shell."
+                } else {
+                    "Esta compilación todavía no incluye el ejecutable PRoot para el dispositivo."
+                },
+                good = prootAvailable,
             )
         }
         item {
@@ -420,43 +435,175 @@ private fun DistroCard(
 }
 
 @Composable
-private fun TerminalPage() {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+private fun TerminalPage(runtime: ProotRuntime) {
+    val scope = rememberCoroutineScope()
+    val installedDistros = remember {
+        listOf("alpine", "debian", "ubuntu", "arch", "fedora", "opensuse", "void", "kali")
+            .filter(runtime::isDistroInstalled)
+    }
+    val runtimeAvailable = remember { runtime.isRuntimeAvailable() }
+    var selectedDistro by remember { mutableStateOf(installedDistros.firstOrNull() ?: "alpine") }
+    var session by remember { mutableStateOf<TerminalSession?>(null) }
+    var command by remember { mutableStateOf("") }
+    var terminalOutput by remember {
+        mutableStateOf("DistroBoxer Linux Terminal\nPRoot · entorno sin privilegios reales de root\n")
+    }
+    var status by remember {
+        mutableStateOf(if (runtimeAvailable) "PRoot listo" else "Falta el binario PRoot para esta arquitectura")
+    }
+    val currentSession by rememberUpdatedState(session)
+
+    DisposableEffect(runtime) {
+        onDispose {
+            currentSession?.close()
+            runtime.stop()
+        }
+    }
+
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Sesiones Linux interactivas mediante PRoot", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.padding(17.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("●  ●  ●", color = Color(0xFF62E6B7))
                     Spacer(Modifier.weight(1f))
                     Text("DISTROBOXER SHELL", color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
                 }
-                Spacer(Modifier.height(22.dp))
-                Text("Atdev Dev · DistroBoxer", color = Color(0xFF62E6B7), fontWeight = FontWeight.Bold)
-                Text("No hay ninguna sesión Linux activa.", color = Color(0xFFC1D0C9))
-                Spacer(Modifier.height(8.dp))
-                Text("Cuando el runtime esté integrado, aquí podrás:", color = Color(0xFF9FB7AA))
-                Text("  • Abrir una shell interactiva", color = Color(0xFF9FB7AA))
-                Text("  • Cambiar entre distribuciones", color = Color(0xFF9FB7AA))
-                Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
-                Spacer(Modifier.height(12.dp))
-                Text("\$  runtime status", color = Color(0xFF62E6B7))
-                Text("  PRoot: pendiente · X11: pendiente", color = Color(0xFFFFC078))
+
+                Text(status, color = if (session?.isAlive() == true) Color(0xFF62E6B7) else Color(0xFFFFC078))
+                if (installedDistros.isEmpty()) {
+                    Text(
+                        "No hay distribuciones instaladas. Ve a Distros e instala Alpine Linux para habilitar la primera sesión.",
+                        color = Color(0xFFC1D0C9),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text("Distribución instalada", color = Color(0xFF9FB7AA), style = MaterialTheme.typography.labelSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        installedDistros.forEach { distroId ->
+                            FilterChip(
+                                selected = selectedDistro == distroId,
+                                onClick = { if (session == null) selectedDistro = distroId },
+                                label = { Text(distroId.replaceFirstChar { it.uppercase() }) },
+                                enabled = session == null,
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                status = "Iniciando $selectedDistro…"
+                                try {
+                                    val process = withContext(Dispatchers.IO) {
+                                        runtime.startShell(selectedDistro)
+                                    }
+                                    val startedSession = TerminalSession(
+                                        process = process,
+                                        onOutput = { chunk ->
+                                            terminalOutput = (terminalOutput + chunk).takeLast(24000)
+                                        },
+                                        onExit = { exitCode ->
+                                            session = null
+                                            status = "Sesión finalizada (código $exitCode)"
+                                        },
+                                    )
+                                    session = startedSession
+                                    status = "Sesión activa · $selectedDistro"
+                                    terminalOutput += "\n[Conectado a $selectedDistro]\n"
+                                } catch (error: Exception) {
+                                    status = "No se pudo iniciar Linux"
+                                    terminalOutput += "\n[PRoot] ${error.message ?: "Error desconocido"}\n"
+                                }
+                            }
+                        },
+                        enabled = runtimeAvailable && installedDistros.isNotEmpty() && session == null,
+                    ) {
+                        Text("Iniciar Linux")
+                    }
+                    Button(
+                        onClick = {
+                            session?.close()
+                            runtime.stop()
+                            session = null
+                            status = "Sesión detenida"
+                        },
+                        enabled = session?.isAlive() == true,
+                    ) {
+                        Text("Detener")
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .background(Color(0xFF030907), RoundedCornerShape(12.dp))
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        terminalOutput,
+                        color = Color(0xFFB8E8D1),
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = command,
+                        onValueChange = { command = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Comando Linux") },
+                        enabled = session?.isAlive() == true,
+                    )
+                    Button(
+                        onClick = {
+                            runCatching { session?.sendLine(command) }
+                                .onFailure { error ->
+                                    terminalOutput += "\n[terminal] ${error.message ?: "No se pudo enviar el comando"}\n"
+                                }
+                            command = ""
+                        },
+                        enabled = session?.isAlive() == true && command.isNotBlank(),
+                    ) {
+                        Text("Enviar")
+                    }
+                }
             }
         }
+
+        SectionCard(
+            title = "Aislamiento y permisos",
+            value = "Sin root real",
+            detail = "PRoot emula el entorno root dentro del espacio privado de la app. No desbloquea el bootloader ni concede permisos de administrador a Android.",
+            good = true,
+        )
         SectionCard(
             title = "Sesiones en segundo plano",
-            value = "Runtime pendiente",
-            detail = "El trabajo en segundo plano actual cubre descargas. Las sesiones Linux necesitarán un servicio persistente y controles para detenerlas.",
+            value = "No persistentes todavía",
+            detail = "La sesión funciona mientras la pantalla y el proceso de la app sigan activos. El servicio persistente se desarrollará en una etapa posterior.",
             good = false,
         )
     }
 }
-
 
 @Composable
 private fun DesktopPage() {
