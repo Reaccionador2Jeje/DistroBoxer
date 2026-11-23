@@ -2,7 +2,7 @@
 
 **DistroBoxer** is an open-source Linux distribution environment manager for Android, Windows, and Linux desktop.
 
-The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. The Android runtime is planned around PRoot or a compatible unprivileged userspace runtime. It is not a full virtual machine and does not provide a separate Linux kernel.
+The project uses a shared Rust engine, a native Kotlin + Jetpack Compose Android application, and a Tauri desktop shell. Android's initial Linux runtime uses PRoot, an unprivileged userspace process translator. It is not a full virtual machine and does not provide a separate Linux kernel.
 
 ## Project status
 
@@ -19,6 +19,7 @@ Implemented:
 - Redesigned Android Compose interface with dashboard, distro search, terminal center, graphical-desktop center, and settings navigation.
 - Redesigned responsive desktop workspace with sidebar navigation, searchable catalog, terminal preview, and graphical-desktop catalog.
 - Android Compose application and JNI bridge to Rust.
+- Initial Android PRoot runtime and interactive foreground shell, with ABI-specific binaries built from pinned Termux PRoot source (CI and physical-device validation pending).
 - Android adaptive launcher icon and app identity assets.
 - Alpine 3.24.4 ARM64/x86_64 source manifest and official SHA-256 manifest lookup.
 - WorkManager download-to-install chain for Alpine gzip tarballs, with HTTPS host allowlisting, SHA-256 verification, cancellation, and foreground notifications.
@@ -30,14 +31,13 @@ Implemented:
 Not implemented yet:
 - Trusted, pinned rootfs manifests and end-to-end installation for each distribution.
 - Safe archive/OCI layer extraction and recovery from interrupted extraction.
-- Bundled PRoot runtime and interactive Linux terminal.
 - X11 display backend and XFCE/LXQt/MATE session launcher (design documented; not yet implemented).
 - X11 display backend and XFCE/LXQt/MATE session launcher (design documented; not yet implemented).
 - Persistent background Linux sessions (the current background worker handles downloads only).
 - Signed production Android APK/AAB and platform installer bundles.
 - Official F-Droid submission and acceptance.
 
-The catalog profiles describe intended bootstrap formats; they do not mean that every listed distribution is currently installable.
+The catalog profiles describe intended bootstrap formats; they do not mean that every listed distribution is currently installable. Alpine is currently the only end-to-end Android rootfs installation path. See [Android PRoot runtime notes](runtime/PROOT_ANDROID.md) for runtime packaging, limitations, and validation status.
 
 ## Repository layout
 
