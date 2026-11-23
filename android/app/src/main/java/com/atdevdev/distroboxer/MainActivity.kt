@@ -152,14 +152,16 @@ private fun DistroBoxerScreen() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF101A29)) {
-                AppTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        icon = { Text(tab.symbol, fontWeight = FontWeight.Bold) },
-                        label = { Text(tab.label) },
-                    )
+            if (selectedTab != AppTab.TERMINAL) {
+                NavigationBar(containerColor = Color(0xFF101A29)) {
+                    AppTab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = { Text(tab.symbol, fontWeight = FontWeight.Bold) },
+                            label = { Text(tab.label) },
+                        )
+                    }
                 }
             }
         },
@@ -167,10 +169,13 @@ private fun DistroBoxerScreen() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 18.dp),
+                .then(
+                    if (selectedTab == AppTab.TERMINAL) Modifier
+                    else Modifier.padding(innerPadding).padding(horizontal = 18.dp),
+                ),
         ) {
-            Row(
+            if (selectedTab != AppTab.TERMINAL) {
+                Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 14.dp, bottom = 18.dp),
@@ -203,6 +208,7 @@ private fun DistroBoxerScreen() {
                         fontWeight = FontWeight.Bold,
                     )
                 }
+            }
             }
 
             when (selectedTab) {
@@ -274,7 +280,7 @@ private fun DistroBoxerScreen() {
                         }
                     }
                 }
-                AppTab.TERMINAL -> TerminalPage()
+                AppTab.TERMINAL -> TerminalPage(onExit = { selectedTab = AppTab.HOME })
                 AppTab.DESKTOP -> DesktopPage()
                 AppTab.SETTINGS -> SettingsPage(
                     engineConnected = catalog.engineConnected,
@@ -336,9 +342,9 @@ private fun HomePage(
         }
         item {
             SectionCard(
-                title = "Terminal Linux",
-                value = "Próximamente",
-                detail = "La interfaz está preparada; falta integrar PRoot y las sesiones de shell.",
+                title = "Runtime NELRoot",
+                value = "En desarrollo para Android",
+                detail = "DistroBoxer usará el runtime propio de NELRoot; no necesita Termux como dependencia.",
                 good = false,
             )
         }
@@ -420,43 +426,114 @@ private fun DistroCard(
 }
 
 @Composable
-private fun TerminalPage() {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Terminal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Centro de sesiones Linux", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF07110F)),
-            modifier = Modifier.fillMaxWidth(),
+private fun TerminalPage(onExit: () -> Unit) {
+    var command by remember { mutableStateOf("") }
+    val terminalOutput = remember {
+        "DistroBoxer Terminal 0.4\n" +
+            "NELRoot backend · Android ARM64\n" +
+            "----------------------------------------\n" +
+            "NELRoot está seleccionado como runtime del proyecto.\n" +
+            "El backend de ejecución Android todavía está en desarrollo.\n\n" +
+            "No se ha iniciado ninguna sesión Linux.\n"
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF030907)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            Column(Modifier.padding(17.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("●  ●  ●", color = Color(0xFF62E6B7))
-                    Spacer(Modifier.weight(1f))
-                    Text("DISTROBOXER SHELL", color = Color(0xFF8BA99D), style = MaterialTheme.typography.labelSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(onClick = onExit) { Text("← Salir") }
+                Spacer(Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "DISTROBOXER TERMINAL",
+                        color = Color(0xFF62E6B7),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "NELRoot · backend en desarrollo",
+                        color = Color(0xFF8BA99D),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
-                Spacer(Modifier.height(22.dp))
-                Text("Atdev Dev · DistroBoxer", color = Color(0xFF62E6B7), fontWeight = FontWeight.Bold)
-                Text("No hay ninguna sesión Linux activa.", color = Color(0xFFC1D0C9))
-                Spacer(Modifier.height(8.dp))
-                Text("Cuando el runtime esté integrado, aquí podrás:", color = Color(0xFF9FB7AA))
-                Text("  • Abrir una shell interactiva", color = Color(0xFF9FB7AA))
-                Text("  • Cambiar entre distribuciones", color = Color(0xFF9FB7AA))
-                Text("  • Ejecutar aplicaciones y escritorios gráficos", color = Color(0xFF9FB7AA))
-                Spacer(Modifier.height(12.dp))
-                Text("\$  runtime status", color = Color(0xFF62E6B7))
-                Text("  PRoot: pendiente · X11: pendiente", color = Color(0xFFFFC078))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("●", color = Color(0xFFFF6B6B))
+                Spacer(Modifier.size(7.dp))
+                Text("●", color = Color(0xFFFFC078))
+                Spacer(Modifier.size(7.dp))
+                Text("●", color = Color(0xFF62E6B7))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "SIN SESIÓN",
+                    color = Color(0xFFFFC078),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFF07110F), RoundedCornerShape(10.dp))
+                    .verticalScroll(rememberScrollState())
+                    .padding(12.dp),
+            ) {
+                Text(
+                    terminalOutput,
+                    color = Color(0xFFB8E8D1),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    "root@distroboxer:~#",
+                    color = Color(0xFF62E6B7),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "$",
+                    color = Color(0xFF62E6B7),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+                OutlinedTextField(
+                    value = command,
+                    onValueChange = { command = it },
+                    modifier = Modifier.weight(1f),
+                    enabled = false,
+                    singleLine = true,
+                    placeholder = {
+                        Text(
+                            "Prompt disponible cuando NELRoot ejecute Linux en Android",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                )
+                Button(onClick = {}, enabled = false) { Text("↵") }
             }
         }
-        SectionCard(
-            title = "Sesiones en segundo plano",
-            value = "Runtime pendiente",
-            detail = "El trabajo en segundo plano actual cubre descargas. Las sesiones Linux necesitarán un servicio persistente y controles para detenerlas.",
-            good = false,
-        )
     }
 }
-
 
 @Composable
 private fun DesktopPage() {
@@ -473,10 +550,10 @@ private fun DesktopPage() {
         ) {
             Column(Modifier.padding(18.dp)) {
                 Text("DISPLAY SERVER", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                Text("X11 + PRoot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("X11 + NELRoot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "DistroBoxer necesitará un servidor gráfico Android, un socket X11 compartido con el contenedor y un gestor de sesiones para iniciar el escritorio.",
+                    "DistroBoxer necesitará un servidor gráfico Android, un socket X11 gestionado por NELRoot y un gestor de sesiones para iniciar el escritorio.",
                     color = Color(0xFFC4D5DF),
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -489,8 +566,8 @@ private fun DesktopPage() {
         DesktopEnvironmentCard("MATE", "Clásico y familiar", "Escritorio tradicional con paneles y menú", "PLANIFICADO")
         SectionCard(
             title = "Cómo funcionará",
-            value = "X server → PRoot → escritorio",
-            detail = "El servidor X11 dibuja la interfaz; PRoot ejecuta los procesos Linux sin root; XFCE/LXQt/MATE son los escritorios que se muestran.",
+            value = "X server → NELRoot → escritorio",
+            detail = "El servidor X11 dibuja la interfaz; NELRoot será responsable del entorno y los procesos Linux; XFCE/LXQt/MATE son los escritorios que se muestran.",
             good = true,
         )
         Text(
